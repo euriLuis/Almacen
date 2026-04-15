@@ -31,6 +31,9 @@ build/
 *.sqlite
 *.sqlite3
 
+# Logs directory
+logs/
+
 # IDE files
 .vscode/
 .idea/

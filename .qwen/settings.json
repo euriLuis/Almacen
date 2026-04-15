@@ -13,7 +13,9 @@
       "Bash(tasklist)",
       "Bash(findstr *)",
       "Bash(dir *)",
-      "Bash(do *)"
+      "Bash(do *)",
+      "Bash(echo.)",
+      "Bash(echo *)"
     ]
   },
   "$version": 3

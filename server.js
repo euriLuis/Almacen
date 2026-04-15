@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const initDb = require('./database');
+const log = require('./logger');
 
 const app = express();
 const PORT = 3000;
@@ -12,317 +12,327 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Error logging middleware
-app.use((err, req, res, next) => {
-    console.error(`❌ Server Error [${req.method} ${req.url}]:`, err.message);
-    console.error(err.stack);
-    res.status(500).json({ error: 'Internal server error' });
-});
-
-// Request logging middleware
+// Request logging middleware with timing
 app.use((req, res, next) => {
-    console.log(`📥 ${req.method} ${req.url}`);
+    const start = Date.now();
+    log.request(req.method, req.url, req.body);
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        log.response(req.method, req.url, res.statusCode, duration);
+    });
     next();
 });
 
-// Initialize database and start server
-async function start() {
-    const db = await initDb();
+// Global error handling middleware
+app.use((err, req, res, next) => {
+    log.error('EXPRESS_MIDDLEWARE', `Unhandled error in ${req.method} ${req.url}`, err);
+    res.status(500).json({
+        error: 'An unexpected error occurred on the server',
+        code: 'INTERNAL_SERVER_ERROR',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ==================== HELPER ====================
+
+/**
+ * Wraps a route handler with consistent error handling.
+ * If the handler throws synchronously, it's caught and logged.
+ */
+function handleRoute(handler) {
+    return (req, res) => {
+        try {
+            handler(req, res);
+        } catch (err) {
+            log.error('ROUTE_HANDLER', `Error in ${req.method} ${req.url}`, err);
+            res.status(500).json({
+                error: 'An unexpected error occurred',
+                code: 'INTERNAL_SERVER_ERROR',
+                timestamp: new Date().toISOString()
+            });
+        }
+    };
+}
 
 // ==================== API ROUTES ====================
 
-// ===== WAREHOUSES =====
-app.get('/api/warehouses', (req, res) => {
+async function start() {
+    let db;
     try {
-        const warehouses = db.exec('SELECT * FROM warehouses ORDER BY created_at DESC');
-        res.json(warehouses.length > 0 ? warehouses[0].values : []);
+        db = await initDb();
+        log.action('DATABASE', 'Database initialized successfully');
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        log.error('DATABASE_INIT', 'Failed to initialize database', err);
+        process.exit(1);
     }
-});
 
-app.post('/api/warehouses', (req, res) => {
-    try {
+    // ===== WAREHOUSES =====
+
+    app.get('/api/warehouses', handleRoute((req, res) => {
+        const result = db.exec('SELECT id, name, description FROM warehouses ORDER BY name');
+        log.db('READ', 'Fetching all warehouses');
+        res.json(result.length > 0 ? result[0].values : []);
+    }));
+
+    app.post('/api/warehouses', handleRoute((req, res) => {
         const { name, description } = req.body;
-        if (!name) return res.status(400).json({ error: 'Name is required' });
 
-        // Check if warehouse with same name already exists
-        const existing = db.exec('SELECT id FROM warehouses WHERE name = ?', [name]);
-        if (existing.length > 0 && existing[0].values.length > 0) {
-            return res.status(409).json({ error: 'A warehouse with this name already exists' });
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
+            return res.status(400).json({
+                error: 'Warehouse name is required and must be a non-empty string',
+                code: 'VALIDATION_ERROR',
+                field: 'name'
+            });
         }
+
+        const sanitizedName = name.trim();
+        const sanitizedDesc = (description && typeof description === 'string') ? description.trim() : '';
 
         const stmt = db.prepare('INSERT INTO warehouses (name, description) VALUES (?, ?)');
-        stmt.run([name, description || '']);
+        stmt.run([sanitizedName, sanitizedDesc]);
         db.save();
 
-        const result = db.exec('SELECT last_insert_rowid() as id');
-        res.status(201).json({ id: result[0].values[0][0], name, description: description || '' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        const result = db.exec('SELECT last_insert_rowid()');
+        const newId = result[0].values[0][0];
 
-app.delete('/api/warehouses/:id', (req, res) => {
-    try {
-        const { id } = req.params;
+        log.action('WAREHOUSE_CREATE', `Created warehouse "${sanitizedName}"`, { id: newId });
+
+        res.status(201).json({ id: newId, name: sanitizedName, description: sanitizedDesc });
+    }));
+
+    app.delete('/api/warehouses/:id', handleRoute((req, res) => {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({
+                error: 'Invalid warehouse ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'id'
+            });
+        }
+
+        // Check if warehouse exists before deleting
+        const exists = db.exec('SELECT id, name FROM warehouses WHERE id = ?', [id]);
+        if (exists.length === 0 || exists[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Warehouse with ID ${id} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const warehouseName = exists[0].values[0][1];
         db.run('DELETE FROM warehouses WHERE id = ?', [id]);
         db.save();
-        res.json({ message: 'Warehouse deleted' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
-// ===== CATEGORIES =====
-app.get('/api/warehouses/:warehouseId/categories', (req, res) => {
-    try {
-        const { warehouseId } = req.params;
-        const categories = db.exec(
-            'SELECT * FROM categories WHERE warehouse_id = ? ORDER BY created_at DESC',
+        log.action('WAREHOUSE_DELETE', `Deleted warehouse "${warehouseName}" (ID: ${id})`);
+
+        res.json({ message: 'Warehouse deleted successfully' });
+    }));
+
+    // ===== CATEGORIES =====
+
+    app.get('/api/warehouses/:warehouseId/categories', handleRoute((req, res) => {
+        const warehouseId = parseInt(req.params.warehouseId);
+        if (isNaN(warehouseId)) {
+            return res.status(400).json({
+                error: 'Invalid warehouse ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
+
+        // Verify warehouse exists
+        const whExists = db.exec('SELECT id, name FROM warehouses WHERE id = ?', [warehouseId]);
+        if (whExists.length === 0 || whExists[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Warehouse with ID ${warehouseId} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        log.db('READ', `Fetching categories for warehouse ID ${warehouseId}`);
+
+        const result = db.exec(
+            'SELECT id, name, warehouse_id FROM categories WHERE warehouse_id = ? ORDER BY name',
             [warehouseId]
         );
-        res.json(categories.length > 0 ? categories[0].values : []);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        res.json(result.length > 0 ? result[0].values : []);
+    }));
 
-app.post('/api/warehouses/:warehouseId/categories', (req, res) => {
-    try {
-        const { warehouseId } = req.params;
+    app.post('/api/warehouses/:warehouseId/categories', handleRoute((req, res) => {
+        const warehouseId = parseInt(req.params.warehouseId);
+        if (isNaN(warehouseId)) {
+            return res.status(400).json({
+                error: 'Invalid warehouse ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
+
         const { name } = req.body;
-        if (!name) return res.status(400).json({ error: 'Name is required' });
-        
-        const stmt = db.prepare('INSERT INTO categories (name, warehouse_id) VALUES (?, ?)');
-        stmt.run([name, warehouseId]);
-        db.save();
-        
-        const result = db.exec('SELECT last_insert_rowid() as id');
-        res.json({ id: result[0].values[0][0], name, warehouse_id: warehouseId });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
+            return res.status(400).json({
+                error: 'Category name is required and must be a non-empty string',
+                code: 'VALIDATION_ERROR',
+                field: 'name'
+            });
+        }
 
-app.delete('/api/categories/:id', (req, res) => {
-    try {
-        const { id } = req.params;
+        // Verify warehouse exists
+        const whExists = db.exec('SELECT id, name FROM warehouses WHERE id = ?', [warehouseId]);
+        if (whExists.length === 0 || whExists[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Warehouse with ID ${warehouseId} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const sanitizedName = name.trim();
+        const stmt = db.prepare('INSERT INTO categories (name, warehouse_id) VALUES (?, ?)');
+        stmt.run([sanitizedName, warehouseId]);
+        db.save();
+
+        const result = db.exec('SELECT last_insert_rowid()');
+        const newId = result[0].values[0][0];
+
+        log.action('CATEGORY_CREATE', `Created category "${sanitizedName}" in warehouse ID ${warehouseId}`, {
+            id: newId,
+            warehouseId
+        });
+
+        res.status(201).json({ id: newId, name: sanitizedName, warehouse_id: warehouseId });
+    }));
+
+    app.delete('/api/categories/:id', handleRoute((req, res) => {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({
+                error: 'Invalid category ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'id'
+            });
+        }
+
+        // Get category info before deleting
+        const catExists = db.exec('SELECT id, name, warehouse_id FROM categories WHERE id = ?', [id]);
+        if (catExists.length === 0 || catExists[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Category with ID ${id} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const catName = catExists[0].values[0][1];
         db.run('DELETE FROM categories WHERE id = ?', [id]);
         db.save();
-        res.json({ message: 'Category deleted' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
-// ===== PRODUCTS =====
-app.get('/api/categories/:categoryId/products', (req, res) => {
-    try {
-        const { categoryId } = req.params;
-        const products = db.exec(
-            'SELECT * FROM products WHERE category_id = ? ORDER BY name',
-            [categoryId]
-        );
-        res.json(products.length > 0 ? products[0].values : []);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        log.action('CATEGORY_DELETE', `Deleted category "${catName}" (ID: ${id})`);
 
-app.get('/api/warehouses/:warehouseId/products', (req, res) => {
-    try {
-        const { warehouseId } = req.params;
-        const { categoryId } = req.query;
-        
-        let query = `
-            SELECT p.*, c.name as category_name 
-            FROM products p 
-            JOIN categories c ON p.category_id = c.id 
-            WHERE c.warehouse_id = ?
-        `;
-        const params = [warehouseId];
-        
-        if (categoryId) {
-            query += ' AND p.category_id = ?';
-            params.push(categoryId);
+        res.json({ message: 'Category deleted successfully' });
+    }));
+
+    // ===== PRODUCTS =====
+
+    app.post('/api/categories/:categoryId/products', handleRoute((req, res) => {
+        const categoryId = parseInt(req.params.categoryId);
+        if (isNaN(categoryId)) {
+            return res.status(400).json({
+                error: 'Invalid category ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'categoryId'
+            });
         }
-        
-        query += ' ORDER BY c.name, p.name';
-        
-        const products = db.exec(query, params);
-        res.json(products.length > 0 ? products[0].values : []);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
-app.post('/api/categories/:categoryId/products', (req, res) => {
-    try {
-        const { categoryId } = req.params;
         const { name, description } = req.body;
-        if (!name) return res.status(400).json({ error: 'Name is required' });
-        
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
+            return res.status(400).json({
+                error: 'Product name is required and must be a non-empty string',
+                code: 'VALIDATION_ERROR',
+                field: 'name'
+            });
+        }
+
+        // Verify category exists
+        const catResult = db.exec('SELECT id, name, warehouse_id FROM categories WHERE id = ?', [categoryId]);
+        if (catResult.length === 0 || catResult[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Category with ID ${categoryId} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const categoryName = catResult[0].values[0][1];
+        const sanitizedName = name.trim();
+        const sanitizedDesc = (description && typeof description === 'string') ? description.trim() : '';
+
         const stmt = db.prepare(
             'INSERT INTO products (name, description, category_id, quantity) VALUES (?, ?, ?, 0)'
         );
-        stmt.run([name, description || '', categoryId]);
+        stmt.run([sanitizedName, sanitizedDesc, categoryId]);
         db.save();
-        
-        const result = db.exec('SELECT last_insert_rowid() as id');
-        res.json({ 
-            id: result[0].values[0][0], 
-            name, 
-            description: description || '', 
-            category_id: categoryId,
-            quantity: 0 
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
-app.delete('/api/products/:id', (req, res) => {
-    try {
-        const { id } = req.params;
+        const result = db.exec('SELECT last_insert_rowid()');
+        const newId = result[0].values[0][0];
+
+        log.action('PRODUCT_CREATE', `Created product "${sanitizedName}" in category "${categoryName}"`, {
+            id: newId,
+            categoryId
+        });
+
+        res.status(201).json({
+            id: newId,
+            name: sanitizedName,
+            description: sanitizedDesc,
+            category_id: categoryId,
+            quantity: 0
+        });
+    }));
+
+    app.delete('/api/products/:id', handleRoute((req, res) => {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({
+                error: 'Invalid product ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'id'
+            });
+        }
+
+        // Get product info before deleting
+        const prodExists = db.exec('SELECT id, name, category_id FROM products WHERE id = ?', [id]);
+        if (prodExists.length === 0 || prodExists[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Product with ID ${id} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const prodName = prodExists[0].values[0][1];
         db.run('DELETE FROM products WHERE id = ?', [id]);
         db.save();
-        res.json({ message: 'Product deleted' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
-// ===== MOVEMENTS (Entries/Exits) =====
-app.post('/api/movements', (req, res) => {
-    try {
-        const { movements } = req.body;
-        if (!Array.isArray(movements) || movements.length === 0) {
-            return res.status(400).json({ error: 'Movements array is required' });
-        }
-        
-        const insertStmt = db.prepare(
-            'INSERT INTO movements (product_id, type, quantity, date, notes) VALUES (?, ?, ?, ?, ?)'
-        );
-        
-        const updateStmt = db.prepare(
-            'UPDATE products SET quantity = quantity + ? WHERE id = ?'
-        );
-        
-        const today = new Date().toISOString().split('T')[0];
-        
-        for (const movement of movements) {
-            const { productId, type, quantity, notes } = movement;
-            
-            if (!productId || !type || !quantity) {
-                return res.status(400).json({ 
-                    error: 'productId, type, and quantity are required for each movement' 
-                });
-            }
-            
-            if (type !== 'entry' && type !== 'exit') {
-                return res.status(400).json({ error: 'Type must be "entry" or "exit"' });
-            }
-            
-            if (type === 'exit') {
-                const product = db.exec('SELECT quantity FROM products WHERE id = ?', [productId]);
-                if (product.length > 0 && product[0].values[0][0] < quantity) {
-                    return res.status(400).json({ 
-                        error: 'Insufficient stock for product' 
-                    });
-                }
-            }
-            
-            const qty = type === 'entry' ? quantity : -quantity;
-            insertStmt.run([productId, type, quantity, today, notes || '']);
-            updateStmt.run([qty, productId]);
-        }
-        
-        db.save();
-        res.json({ message: 'Movements recorded successfully', count: movements.length });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        log.action('PRODUCT_DELETE', `Deleted product "${prodName}" (ID: ${id})`);
 
-// ===== DAILY SUMMARY =====
-app.get('/api/summary/daily', (req, res) => {
-    try {
-        const { date } = req.query;
-        const targetDate = date || new Date().toISOString().split('T')[0];
+        res.json({ message: 'Product deleted successfully' });
+    }));
 
-        const summary = db.exec(`
-            SELECT
-                p.id as product_id,
-                p.name as product_name,
-                c.name as category_name,
-                w.name as warehouse_name,
-                w.id as warehouse_id,
-                COALESCE(SUM(CASE WHEN m.type = 'entry' THEN m.quantity ELSE 0 END), 0) as total_entries,
-                COALESCE(SUM(CASE WHEN m.type = 'exit' THEN m.quantity ELSE 0 END), 0) as total_exits,
-                p.quantity as current_quantity
-            FROM movements m
-            JOIN products p ON m.product_id = p.id
-            JOIN categories c ON p.category_id = c.id
-            JOIN warehouses w ON c.warehouse_id = w.id
-            WHERE m.date = ?
-            GROUP BY p.id
-            ORDER BY w.name, c.name, p.name
-        `, [targetDate]);
+    // ===== INVENTORY (all products for a warehouse with filters) =====
 
-        res.json(summary.length > 0 ? summary[0].values : []);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ===== WEEKLY SUMMARY =====
-app.get('/api/summary/weekly', (req, res) => {
-    try {
-        const { date } = req.query;
-        const targetDate = date || new Date().toISOString().split('T')[0];
-        
-        // Calculate week start (Monday) and end (Sunday)
-        const dateObj = new Date(targetDate);
-        const dayOfWeek = dateObj.getDay();
-        const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
-        const monday = new Date(dateObj);
-        monday.setDate(dateObj.getDate() + diffToMonday);
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        
-        const startDate = monday.toISOString().split('T')[0];
-        const endDate = sunday.toISOString().split('T')[0];
-
-        const summary = db.exec(`
-            SELECT
-                p.id as product_id,
-                p.name as product_name,
-                c.name as category_name,
-                w.name as warehouse_name,
-                w.id as warehouse_id,
-                COALESCE(SUM(CASE WHEN m.type = 'entry' THEN m.quantity ELSE 0 END), 0) as total_entries,
-                COALESCE(SUM(CASE WHEN m.type = 'exit' THEN m.quantity ELSE 0 END), 0) as total_exits,
-                p.quantity as current_quantity
-            FROM movements m
-            JOIN products p ON m.product_id = p.id
-            JOIN categories c ON p.category_id = c.id
-            JOIN warehouses w ON c.warehouse_id = w.id
-            WHERE m.date >= ? AND m.date <= ?
-            GROUP BY p.id
-            ORDER BY w.name, c.name, p.name
-        `, [startDate, endDate]);
-
-        res.json(summary.length > 0 ? summary[0].values : []);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ===== ALL PRODUCTS WITH STOCK =====
-app.get('/api/products', (req, res) => {
-    try {
+    app.get('/api/inventory', handleRoute((req, res) => {
         const { warehouseId, categoryId, search } = req.query;
+
+        if (!warehouseId) {
+            log.db('READ', 'Inventory fetch skipped: no warehouseId provided');
+            return res.json([]);
+        }
+
+        const whId = parseInt(warehouseId);
+        if (isNaN(whId)) {
+            return res.status(400).json({
+                error: 'Invalid warehouse ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
 
         let query = `
             SELECT
@@ -337,62 +347,191 @@ app.get('/api/products', (req, res) => {
             FROM products p
             JOIN categories c ON p.category_id = c.id
             JOIN warehouses w ON c.warehouse_id = w.id
-            WHERE 1=1
+            WHERE c.warehouse_id = ?
         `;
-        const params = [];
-
-        if (warehouseId) {
-            query += ' AND w.id = ?';
-            params.push(warehouseId);
-        }
+        const params = [whId];
 
         if (categoryId) {
+            const catId = parseInt(categoryId);
+            if (isNaN(catId)) {
+                return res.status(400).json({
+                    error: 'Invalid category ID: must be a number',
+                    code: 'VALIDATION_ERROR',
+                    field: 'categoryId'
+                });
+            }
             query += ' AND c.id = ?';
-            params.push(categoryId);
+            params.push(catId);
         }
 
-        if (search) {
+        if (search && typeof search === 'string') {
             query += ' AND p.name LIKE ?';
             params.push(`%${search}%`);
         }
 
-        query += ' ORDER BY w.name, c.name, p.name';
+        query += ' ORDER BY c.name, p.name';
 
-        const products = db.exec(query, params);
-        res.json(products.length > 0 ? products[0].values : []);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        log.db('READ', `Fetching inventory for warehouse ${whId}${search ? `, search: "${search}"` : ''}`);
 
-// ===== RESTORE DELETED WAREHOUSE (undo) =====
-app.post('/api/warehouses/restore', (req, res) => {
-    try {
-        const { id, name, description, created_at } = req.body;
-        
-        if (!id || !name) {
-            return res.status(400).json({ error: 'id and name are required' });
+        const result = db.exec(query, params);
+        res.json(result.length > 0 ? result[0].values : []);
+    }));
+
+    // ===== MOVEMENTS =====
+
+    app.post('/api/movements', handleRoute((req, res) => {
+        const { products, type, quantity, notes } = req.body;
+
+        // Support both single-product and multi-product formats
+        let items = [];
+        if (products && Array.isArray(products)) {
+            // Multi-product format: [{ productId, quantity }]
+            if (products.length === 0) {
+                return res.status(400).json({
+                    error: 'Products array must contain at least one product',
+                    code: 'VALIDATION_ERROR',
+                    field: 'products'
+                });
+            }
+            items = products;
+        } else {
+            // Single-product format (backward compatible)
+            const productId = req.body.productId;
+            if (!productId) {
+                return res.status(400).json({
+                    error: 'Product ID is required. Provide either "productId" (single) or "products" array (multiple)',
+                    code: 'VALIDATION_ERROR',
+                    field: 'productId'
+                });
+            }
+            if (!type) {
+                return res.status(400).json({
+                    error: 'Movement type is required (must be "entry" or "exit")',
+                    code: 'VALIDATION_ERROR',
+                    field: 'type'
+                });
+            }
+            if (quantity === undefined || quantity === null) {
+                return res.status(400).json({
+                    error: 'Quantity is required and must be a positive number',
+                    code: 'VALIDATION_ERROR',
+                    field: 'quantity'
+                });
+            }
+            items = [{ productId, quantity }];
         }
 
-        const stmt = db.prepare(
-            'INSERT INTO warehouses (id, name, description, created_at) VALUES (?, ?, ?, ?)'
-        );
-        stmt.run([id, name, description || '', created_at || new Date().toISOString()]);
+        if (type !== 'entry' && type !== 'exit') {
+            return res.status(400).json({
+                error: `Invalid movement type "${type}". Must be "entry" or "exit"`,
+                code: 'VALIDATION_ERROR',
+                field: 'type'
+            });
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        const results = [];
+
+        // Process each product
+        for (const item of items) {
+            const { productId, quantity: qty } = item;
+
+            if (!productId) {
+                return res.status(400).json({
+                    error: `Each product must have a valid productId`,
+                    code: 'VALIDATION_ERROR',
+                    field: 'products'
+                });
+            }
+
+            const parsedId = parseInt(productId);
+            if (isNaN(parsedId)) {
+                return res.status(400).json({
+                    error: `Invalid product ID: ${productId}. Must be a number`,
+                    code: 'VALIDATION_ERROR',
+                    field: 'productId'
+                });
+            }
+
+            const parsedQty = parseInt(qty);
+            if (isNaN(parsedQty) || parsedQty <= 0) {
+                return res.status(400).json({
+                    error: `Invalid quantity for product ID ${parsedId}: must be a positive integer (got: ${qty})`,
+                    code: 'VALIDATION_ERROR',
+                    field: 'quantity'
+                });
+            }
+
+            // Get product info including warehouse
+            const productResult = db.exec(`
+                SELECT p.id, p.name, p.quantity, c.warehouse_id
+                FROM products p
+                JOIN categories c ON p.category_id = c.id
+                WHERE p.id = ?
+            `, [parsedId]);
+
+            if (productResult.length === 0 || productResult[0].values.length === 0) {
+                return res.status(404).json({
+                    error: `Product not found (ID: ${parsedId})`,
+                    code: 'NOT_FOUND'
+                });
+            }
+
+            const product = productResult[0].values[0];
+            const currentStock = product[2];
+            const warehouseId = product[3];
+            const productName = product[1];
+
+            // Validate stock for exits
+            if (type === 'exit' && parsedQty > currentStock) {
+                return res.status(400).json({
+                    error: `Insufficient stock for "${productName}". Requested: ${parsedQty}, Available: ${currentStock}`,
+                    code: 'INSUFFICIENT_STOCK',
+                    productId: parsedId,
+                    productName,
+                    currentStock,
+                    requested: parsedQty
+                });
+            }
+
+            const stockChange = type === 'entry' ? parsedQty : -parsedQty;
+
+            const insertMovement = db.prepare(
+                'INSERT INTO movements (product_id, warehouse_id, type, quantity, date, notes) VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            insertMovement.run([parsedId, warehouseId, type, parsedQty, today, notes || '']);
+
+            const updateStock = db.prepare(
+                'UPDATE products SET quantity = quantity + ? WHERE id = ?'
+            );
+            updateStock.run([stockChange, parsedId]);
+
+            const newStock = currentStock + stockChange;
+            results.push({ productId: parsedId, productName, quantity: parsedQty, newStock });
+        }
+
         db.save();
 
-        res.json({ id, name, description: description || '' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        const typeLabel = type === 'entry' ? 'Entry' : 'Exit';
+        log.action('MOVEMENT_CREATE', `${typeLabel} movement: ${results.map(r => `${r.productName} (${r.quantity})`).join(', ')}`, {
+            type,
+            notes: notes || null,
+            results
+        });
 
-// ===== MOVEMENT HISTORY =====
-app.get('/api/movements', (req, res) => {
-    try {
-        const { warehouseId, categoryId, startDate, endDate } = req.query;
-        
+        res.json({
+            message: `Movement recorded successfully`,
+            results,
+            type,
+            totalProducts: results.length
+        });
+    }));
+
+    app.get('/api/movements', handleRoute((req, res) => {
+        const { warehouseId, limit } = req.query;
+
         let query = `
-            SELECT 
+            SELECT
                 m.id,
                 m.type,
                 m.quantity,
@@ -405,129 +544,301 @@ app.get('/api/movements', (req, res) => {
             JOIN products p ON m.product_id = p.id
             JOIN categories c ON p.category_id = c.id
             JOIN warehouses w ON c.warehouse_id = w.id
-            WHERE 1=1
         `;
         const params = [];
-        
-        if (warehouseId) {
-            query += ' AND w.id = ?';
-            params.push(warehouseId);
-        }
-        
-        if (categoryId) {
-            query += ' AND c.id = ?';
-            params.push(categoryId);
-        }
-        
-        if (startDate) {
-            query += ' AND m.date >= ?';
-            params.push(startDate);
-        }
-        
-        if (endDate) {
-            query += ' AND m.date <= ?';
-            params.push(endDate);
-        }
-        
-        query += ' ORDER BY m.date DESC, m.id DESC';
-        
-        const movements = db.exec(query, params);
-        res.json(movements.length > 0 ? movements[0].values : []);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
-// ===== CSV IMPORT =====
-app.post('/api/warehouses/:warehouseId/import-csv', (req, res) => {
-    try {
-        const { warehouseId } = req.params;
+        if (warehouseId) {
+            const whId = parseInt(warehouseId);
+            if (isNaN(whId)) {
+                return res.status(400).json({
+                    error: 'Invalid warehouse ID: must be a number',
+                    code: 'VALIDATION_ERROR',
+                    field: 'warehouseId'
+                });
+            }
+            query += ' WHERE w.id = ?';
+            params.push(whId);
+        }
+
+        query += ' ORDER BY m.date DESC, m.id DESC';
+
+        if (limit) {
+            const parsedLimit = parseInt(limit);
+            if (isNaN(parsedLimit) || parsedLimit < 1) {
+                return res.status(400).json({
+                    error: 'Invalid limit: must be a positive number',
+                    code: 'VALIDATION_ERROR',
+                    field: 'limit'
+                });
+            }
+            query += ' LIMIT ?';
+            params.push(parsedLimit);
+        }
+
+        log.db('READ', `Fetching movements${warehouseId ? ` for warehouse ${warehouseId}` : ''}`);
+
+        const result = db.exec(query, params);
+        res.json(result.length > 0 ? result[0].values : []);
+    }));
+
+    app.delete('/api/movements/:id', handleRoute((req, res) => {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({
+                error: 'Invalid movement ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'id'
+            });
+        }
+
+        // 1. Get movement data
+        const movementResult = db.exec(
+            'SELECT id, product_id, type, quantity, notes FROM movements WHERE id = ?',
+            [id]
+        );
+
+        if (movementResult.length === 0 || movementResult[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Movement with ID ${id} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const movement = movementResult[0].values[0];
+        const productId = movement[1];
+        const type = movement[2];
+        const quantity = movement[3];
+
+        // 2. Get current product stock
+        const productResult = db.exec('SELECT id, name, quantity FROM products WHERE id = ?', [productId]);
+        if (productResult.length === 0 || productResult[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Associated product (ID: ${productId}) not found. Data may be inconsistent`,
+                code: 'DATA_INCONSISTENCY'
+            });
+        }
+
+        const productName = productResult[0].values[0][1];
+        const currentStock = productResult[0].values[0][2];
+
+        // 3. Revert stock
+        let newStock;
+        if (type === 'entry') {
+            newStock = currentStock - quantity;
+        } else {
+            newStock = currentStock + quantity;
+        }
+
+        // 4. Validate no negative stock
+        if (newStock < 0) {
+            log.warn('MOVEMENT_DELETE_REVERT', `Reverting movement would cause negative stock`, {
+                movementId: id,
+                product: productName,
+                currentStock,
+                quantity,
+                type,
+                wouldBeStock: newStock
+            });
+            return res.status(400).json({
+                error: `Cannot reverse this movement: would result in negative stock for "${productName}" (current: ${currentStock}, after revert: ${newStock})`,
+                code: 'WOULD_CAUSE_NEGATIVE_STOCK',
+                currentStock,
+                wouldBeStock: newStock
+            });
+        }
+
+        // 5. Update product stock
+        db.run('UPDATE products SET quantity = ? WHERE id = ?', [newStock, productId]);
+
+        // 6. Delete movement
+        db.run('DELETE FROM movements WHERE id = ?', [id]);
+
+        // 7. Save to disk
+        db.save();
+
+        log.action('MOVEMENT_DELETE', `Reverted movement #${id}: ${type} ${quantity} of "${productName}"`, {
+            movementId: id,
+            product: productName,
+            type,
+            quantity,
+            previousStock: currentStock,
+            newStock
+        });
+
+        res.json({
+            success: true,
+            message: `Movement reverted. Stock for "${productName}" updated from ${currentStock} to ${newStock}`,
+            newStock
+        });
+    }));
+
+    // ===== CSV IMPORT =====
+
+    app.post('/api/warehouses/:warehouseId/import-csv', handleRoute((req, res) => {
         const { csvData } = req.body;
 
-        if (!csvData) {
-            return res.status(400).json({ error: 'csvData is required' });
+        if (!csvData || typeof csvData !== 'string' || csvData.trim().length === 0) {
+            return res.status(400).json({
+                error: 'CSV data is required and must be a non-empty string',
+                code: 'VALIDATION_ERROR',
+                field: 'csvData'
+            });
         }
 
+        const warehouseId = parseInt(req.params.warehouseId);
+        if (isNaN(warehouseId)) {
+            return res.status(400).json({
+                error: 'Invalid warehouse ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
+
+        // Verify warehouse exists
+        const whExists = db.exec('SELECT id, name FROM warehouses WHERE id = ?', [warehouseId]);
+        if (whExists.length === 0 || whExists[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Warehouse with ID ${warehouseId} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const warehouseName = whExists[0].values[0][1];
         const lines = csvData.trim().split('\n');
+
         if (lines.length < 2) {
-            return res.status(400).json({ error: 'CSV must have at least a header and one data row' });
+            return res.status(400).json({
+                error: `CSV must have at least a header row and one data row (found ${lines.length} row(s))`,
+                code: 'VALIDATION_ERROR',
+                field: 'csvData'
+            });
         }
 
         const header = lines[0].toLowerCase().split(',').map(h => h.trim());
-
-        // Validate CSV format
         const requiredColumns = ['category', 'product'];
         const missingColumns = requiredColumns.filter(col => !header.includes(col));
 
         if (missingColumns.length > 0) {
             return res.status(400).json({
-                error: `Missing required columns: ${missingColumns.join(', ')}`,
-                expectedFormat: 'category,product'
+                error: `CSV is missing required column(s): ${missingColumns.join(', ')}`,
+                code: 'CSV_FORMAT_ERROR',
+                expectedFormat: 'category,product[,stock]',
+                missingColumns
             });
         }
 
         const categoryIdx = header.indexOf('category');
         const productIdx = header.indexOf('product');
+        const stockIdx = header.includes('stock') ? header.indexOf('stock') : -1;
 
-        const insertCategory = db.prepare(
-            'INSERT OR IGNORE INTO categories (name, warehouse_id) VALUES (?, ?)'
-        );
         const getCategory = db.prepare(
             'SELECT id FROM categories WHERE name = ? AND warehouse_id = ?'
         );
+        const insertCategory = db.prepare(
+            'INSERT OR IGNORE INTO categories (name, warehouse_id) VALUES (?, ?)'
+        );
         const insertProduct = db.prepare(
-            'INSERT INTO products (name, description, category_id, quantity) VALUES (?, "", ?, 0)'
+            'INSERT OR IGNORE INTO products (name, description, category_id, quantity) VALUES (?, "", ?, ?)'
+        );
+        const updateStock = db.prepare(
+            'UPDATE products SET quantity = quantity + ? WHERE name = ? AND category_id = ?'
         );
 
         let imported = { categories: 0, products: 0 };
+        let skippedRows = 0;
+        let errors = [];
 
         for (let i = 1; i < lines.length; i++) {
             const values = lines[i].split(',').map(v => v.trim());
-
             const categoryName = values[categoryIdx];
             const productName = values[productIdx];
+            const stockValue = stockIdx >= 0 ? parseInt(values[stockIdx]) || 0 : 0;
 
-            if (!categoryName || !productName) continue;
+            if (!categoryName || !productName) {
+                skippedRows++;
+                errors.push(`Row ${i + 1}: Missing category or product name, skipped`);
+                continue;
+            }
 
-            // Create category if not exists
-            insertCategory.run([categoryName, warehouseId]);
+            try {
+                // Create category if not exists
+                insertCategory.run([categoryName, warehouseId]);
 
-            // Get category ID
-            const categoryResult = getCategory.run([categoryName, warehouseId]);
-            const categoryId = categoryResult.values[0][0];
-
-            // Create product
-            insertProduct.run([productName, categoryId]);
-            imported.products++;
+                // Get category ID
+                const catResult = getCategory.run([categoryName, warehouseId]);
+                if (catResult.values.length > 0) {
+                    const categoryId = catResult.values[0][0];
+                    insertProduct.run([productName, categoryId, stockValue]);
+                    // If stock was specified and product already existed, update its stock
+                    if (stockIdx >= 0 && stockValue > 0) {
+                        updateStock.run([stockValue, productName, categoryId]);
+                    }
+                    imported.products++;
+                }
+            } catch (rowErr) {
+                errors.push(`Row ${i + 1} (${categoryName} > ${productName}): ${rowErr.message}`);
+                log.warn('CSV_IMPORT_ROW_ERROR', `Error processing row ${i + 1}`, rowErr);
+            }
         }
 
-        // Count categories
-        const categoryCount = db.exec(
-            'SELECT COUNT(*) FROM categories WHERE warehouse_id = ?',
-            [warehouseId]
+        // Count new categories
+        const catCount = db.exec(
+            'SELECT COUNT(*) FROM categories WHERE warehouse_id = ?', [warehouseId]
         );
-        imported.categories = categoryCount[0].values[0][0];
+        imported.categories = catCount[0].values[0][0];
 
         db.save();
+
+        log.action('CSV_IMPORT', `Imported CSV to warehouse "${warehouseName}"`, {
+            warehouseId,
+            imported,
+            skippedRows,
+            errors: errors.length > 0 ? errors : null
+        });
+
         res.json({
             message: 'CSV imported successfully',
-            imported
+            imported,
+            skippedRows,
+            warnings: errors.length > 0 ? errors : undefined
         });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+    }));
 
-// ===== SERVE FRONTEND =====
-app.get('/{*path}', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+    // ===== SERVE FRONTEND =====
+    app.get('/{*path}', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
 
-// Start server
+    // Start server
     app.listen(PORT, () => {
+        log.action('SERVER', `Warehouse Management System started on http://localhost:${PORT}`);
         console.log(`\n🏭 Warehouse Management System running at:`);
         console.log(`   http://localhost:${PORT}`);
+        console.log(`\n📝 Logs are being written to: logs/app.log`);
         console.log(`\n📊 Press Ctrl+C to stop the server\n`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGINT', () => {
+        log.action('SERVER', 'Server shutting down (SIGINT)');
+        console.log('\n\n👋 Shutting down gracefully...');
+        process.exit(0);
+    });
+
+    process.on('SIGTERM', () => {
+        log.action('SERVER', 'Server shutting down (SIGTERM)');
+        process.exit(0);
+    });
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (err) => {
+        log.error('UNCAUGHT_EXCEPTION', 'Uncaught exception detected', err);
+        process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason) => {
+        log.error('UNHANDLED_REJECTION', 'Unhandled promise rejection detected', reason);
+        process.exit(1);
     });
 }
 
