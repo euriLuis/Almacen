@@ -1,1296 +1,203 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestión de Almacenes</title>
+    <title>Warehouse Pro | Sistema de Gestión Automático</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            color: #333;
-            min-height: 100vh;
-        }
-
-        /* HEADER */
-        header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 18px 24px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        header h1 { font-size: 1.4rem; font-weight: 600; }
-
-        .header-right { display: flex; align-items: center; gap: 12px; }
-
-        .header-right label { font-size: 0.9rem; font-weight: 500; }
-
-        .header-right select {
-            padding: 8px 14px;
-            border: 2px solid rgba(255,255,255,0.4);
-            border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            background: rgba(255,255,255,0.95);
-            color: #333;
-            cursor: pointer;
-            min-width: 220px;
-        }
-
-        .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
-
-        /* TABS */
-        .tabs {
-            display: flex;
-            background: white;
-            border-radius: 12px 12px 0 0;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .tab {
-            flex: 1;
-            padding: 16px 12px;
-            text-align: center;
-            cursor: pointer;
-            background: white;
-            border: none;
-            transition: all 0.2s;
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: #666;
-        }
-
-        .tab:hover { background: #f5f3ff; color: #667eea; }
-
-        .tab.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-weight: 600;
-        }
-
-        .tab-content {
-            display: none;
-            background: white;
-            padding: 24px;
-            border-radius: 0 0 12px 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            min-height: 400px;
-        }
-
-        .tab-content.active { display: block; }
-
-        /* SECTION TITLES */
-        .section-title {
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 18px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #eee;
-        }
-
-        /* FORMS */
-        .form-group { margin-bottom: 16px; }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: 600;
-            color: #444;
-            font-size: 0.85rem;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px 14px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            transition: border-color 0.2s;
-            background: #fafafa;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-            background: white;
-        }
-
-        /* BUTTONS */
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 600;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover { opacity: 0.9; }
-
-        .btn-success {
-            background: linear-gradient(135deg, #11998e, #38ef7d);
-            color: white;
-        }
-
-        .btn-success:hover { opacity: 0.9; }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #eb3349, #f45c43);
-            color: white;
-        }
-
-        .btn-danger:hover { opacity: 0.9; }
-
-        .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
-
-        /* CARDS */
-        .card {
-            background: #fafafa;
-            border-radius: 10px;
-            padding: 18px;
-            margin-bottom: 16px;
-            border: 1px solid #e5e7eb;
-        }
-
-        .card h4 { margin-bottom: 12px; color: #667eea; font-size: 1rem; }
-
-        /* LISTS */
-        .list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            margin-bottom: 8px;
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
-            transition: border-color 0.2s;
-        }
-
-        .list-item:hover { border-color: #667eea; }
-
-        /* FILTER BAR */
-        .filter-bar {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 18px;
-            flex-wrap: wrap;
-        }
-
-        .filter-bar input,
-        .filter-bar select {
-            flex: 1;
-            min-width: 180px;
-            padding: 10px 14px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            background: #fafafa;
-        }
-
-        /* BADGES */
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-
-        .badge-entry { background: #d1fae5; color: #065f46; }
-        .badge-exit { background: #fee2e2; color: #991b1b; }
-        .badge-stock {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-
-        /* TABLE */
-        .table-container { overflow-x: auto; }
-
-        table { width: 100%; border-collapse: collapse; }
-
-        th, td {
-            padding: 10px 14px;
-            text-align: left;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        th { background: #f9fafb; font-weight: 600; color: #374151; font-size: 0.85rem; }
-
-        tr:hover { background: #f9fafb; }
-
-        /* EMPTY STATE */
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #9ca3af;
-        }
-
-        .empty-state p { font-size: 0.95rem; }
-
-        /* ALERT */
-        .alert {
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            font-size: 0.9rem;
-        }
-
-        .alert-info { background: #e0f2fe; color: #0c4a6e; border: 1px solid #bae6fd; }
-
-        /* TOAST */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            padding: 14px 22px;
-            border-radius: 10px;
-            color: white;
-            font-weight: 600;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .toast-success { background: linear-gradient(135deg, #11998e, #38ef7d); }
-        .toast-error { background: linear-gradient(135deg, #eb3349, #f45c43); }
-
-        /* SUB-TABS inside Config */
-        .sub-tabs {
-            display: flex;
-            gap: 4px;
-            margin-bottom: 18px;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 0;
-        }
-
-        .sub-tab {
-            padding: 10px 16px;
-            cursor: pointer;
-            background: transparent;
-            border: none;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: #888;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
-            transition: all 0.2s;
-        }
-
-        .sub-tab:hover { color: #667eea; }
-
-        .sub-tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-            font-weight: 600;
-        }
-
-        .sub-tab-content { display: none; }
-        .sub-tab-content.active { display: block; }
-
-        /* MOVEMENT RESULT */
-        .movement-result {
-            padding: 16px;
-            border-radius: 10px;
-            margin-top: 16px;
-            text-align: center;
-            font-size: 1rem;
-        }
-
-        .movement-result.success {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-        }
-
-        .movement-result.error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
-        }
-
-        /* INLINE FORM */
-        .inline-form {
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-        }
-
-        .inline-form .form-group { flex: 1; margin-bottom: 0; }
-
-        /* CSV FORMAT */
-        .csv-format code {
-            display: block;
-            margin-top: 8px;
-            padding: 10px;
-            background: #f3f4f6;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            line-height: 1.5;
-        }
-
-        /* MOVEMENT HISTORY TABLE */
-        .history-table { margin-top: 18px; }
-
-        /* STATS */
-        .stats-row {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 18px;
-            flex-wrap: wrap;
-        }
-
-        .stat-card {
-            flex: 1;
-            min-width: 140px;
-            background: #f9fafb;
-            border-radius: 10px;
-            padding: 14px;
-            text-align: center;
-            border: 1px solid #e5e7eb;
-        }
-
-        .stat-value { font-size: 1.8rem; font-weight: 700; color: #667eea; }
-        .stat-label { font-size: 0.8rem; color: #6b7280; margin-top: 4px; }
-
-        .hidden { display: none !important; }
-
-        /* NO WAREHOUSE SELECTED BANNER */
-        .no-warehouse-banner {
-            text-align: center;
-            padding: 40px 20px;
-            color: #9ca3af;
-            background: #f9fafb;
-            border-radius: 10px;
-            border: 2px dashed #d1d5db;
-        }
+        body { font-family: 'Manrope', sans-serif; }
     </style>
 </head>
-<body>
+<body id="appBody" class="h-screen w-full flex bg-[#0D0D12] text-zinc-300 antialiased overflow-hidden text-[13px]">
+    <div id="appAmbient" aria-hidden="true"></div>
 
-<!-- HEADER with global warehouse selector -->
-<header>
-    <h1>🏭 Gestión de Almacenes</h1>
-    <div class="header-right">
-        <label for="globalWarehouse">📦 Almacén:</label>
-        <select id="globalWarehouse" onchange="changeWarehouse()">
-            <option value="">Seleccionar almacén</option>
-        </select>
-    </div>
-</header>
-
-<div class="container">
-
-    <!-- MAIN TABS: 4 tabs -->
-    <div class="tabs">
-        <button class="tab active" data-tab="config">⚙️ Configuración</button>
-        <button class="tab" data-tab="inventory">📊 Inventario</button>
-        <button class="tab" data-tab="movements">🔄 Movimientos</button>
-        <button class="tab" data-tab="history">📜 Historial</button>
-    </div>
-
-    <!-- ==================== TAB 1: CONFIGURACIÓN ==================== -->
-    <div id="config" class="tab-content active">
-
-        <!-- Sub-tabs for config sections -->
-        <div class="sub-tabs">
-            <button class="sub-tab active" data-sub="config-warehouses">📦 Almacenes</button>
-            <button class="sub-tab" data-sub="config-categories">📂 Categorías</button>
-            <button class="sub-tab" data-sub="config-products">📋 Productos</button>
-            <button class="sub-tab" data-sub="config-csv">📄 Importar CSV</button>
+    <!-- SIDEBAR -->
+    <aside id="appSidebar" class="w-[280px] bg-[#15151D] border-r border-zinc-800/50 flex flex-col z-20 flex-shrink-0 h-full">
+        <div class="h-20 flex items-center px-6 border-b border-zinc-800/50 shrink-0">
+            <div id="navLogoContainer" class="flex items-center gap-3">
+                <div id="navLogoIcon" class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xl">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h1 id="navLogoText" class="text-lg font-black tracking-tight text-white">Warehouse<span class="text-indigo-500">Pro</span></h1>
+            </div>
         </div>
 
-        <!-- Sub: Warehouses CRUD -->
-        <div id="config-warehouses" class="sub-tab-content active">
-            <h3 class="section-title">Almacenes</h3>
-            <div class="card" style="max-width: 500px; margin-bottom: 20px;">
-                <h4>➕ Nuevo Almacén</h4>
-                <div class="inline-form">
-                    <div class="form-group">
-                        <label>Nombre</label>
-                        <input type="text" id="whName" placeholder="Ej: Almacén Principal">
+        <div id="sidebarMenu" class="p-4 flex-1 overflow-y-auto no-scrollbar flex flex-col gap-1 mt-2">
+            <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-4 mb-2">Main Menu</div>
+            
+            <button id="tabConfig" class="tab-btn-main active" data-tab="config">
+                <span class="w-6 text-center text-lg"><i class="fa-solid fa-gear"></i></span> Configuración
+            </button>
+            <button id="tabInventory" class="tab-btn-main" data-tab="inventory">
+                <span class="w-6 text-center text-lg"><i class="fa-solid fa-cubes"></i></span> Inventario
+            </button>
+            <button id="tabMovements" class="tab-btn-main" data-tab="movements">
+                <span class="w-6 text-center text-lg"><i class="fa-solid fa-right-left"></i></span> Movimientos
+            </button>
+            <button id="tabHistory" class="tab-btn-main" data-tab="history">
+                <span class="w-6 text-center text-lg"><i class="fa-solid fa-clock-rotate-left"></i></span> Historial
+            </button>
+            
+            <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-4 mt-6 mb-2">Reporting</div>
+            <button id="tabSummary" class="tab-btn-main" data-tab="summary">
+                <span class="w-6 text-center text-lg"><i class="fa-solid fa-chart-line"></i></span> Cierre Diario
+            </button>
+
+            <div class="mt-auto pt-6">
+                <div class="card bg-indigo-600/10 border-indigo-500/20 flex flex-col items-center text-center p-4">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center mb-3 shadow-[0_0_15px_rgba(79,70,229,0.5)] text-white">
+                        <i class="fa-solid fa-star"></i>
                     </div>
-                    <div class="form-group">
-                        <label>Descripción</label>
-                        <input type="text" id="whDesc" placeholder="Opcional">
-                    </div>
-                    <button class="btn btn-primary" onclick="createWarehouse()" style="margin-bottom: 0;">Crear</button>
+                    <h5 class="text-white font-bold text-sm mb-1">Stock Manager</h5>
+                    <p class="text-xs text-indigo-200/60 mb-3">Keep track of your items securely.</p>
                 </div>
             </div>
-            <div id="warehouseList"></div>
         </div>
+    </aside>
 
-        <!-- Sub: Categories CRUD (filtered by active warehouse) -->
-        <div id="config-categories" class="sub-tab-content">
-            <h3 class="section-title">Categorías</h3>
-            <div class="card" style="max-width: 500px; margin-bottom: 20px;">
-                <h4>➕ Nueva Categoría</h4>
-                <div class="inline-form">
-                    <div class="form-group">
-                        <label>Nombre</label>
-                        <input type="text" id="catName" placeholder="Ej: Electrónicos">
-                    </div>
-                    <button class="btn btn-primary" onclick="createCategory()" style="margin-bottom: 0;">Crear</button>
-                </div>
+    <!-- CONTENT AREA -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden w-full relative">
+        
+        <!-- HEADER -->
+        <header id="mainNavbar" class="h-20 bg-[#0D0D12] border-b border-zinc-800/50 flex flex-col md:flex-row items-center justify-between px-8 gap-4 shrink-0 z-10">
+            <div id="pageTitleBlock" class="flex-1 flex flex-col">
+                <p id="pageEyebrow" class="text-[10px] font-bold uppercase tracking-[0.32em] text-cyan-300/70">Centro operativo</p>
+                <h2 class="text-xl font-black text-white" id="pageTitle">Dashboard</h2>
             </div>
-            <div id="categoryList"></div>
-        </div>
-
-        <!-- Sub: Products CRUD (filtered by active warehouse) -->
-        <div id="config-products" class="sub-tab-content">
-            <h3 class="section-title">Productos</h3>
-            <div class="card" style="max-width: 500px; margin-bottom: 20px;">
-                <h4>➕ Nuevo Producto</h4>
-                <div class="form-group">
-                    <label>Categoría</label>
-                    <select id="productCategory"><option value="">Seleccionar categoría</option></select>
-                </div>
-                <div class="inline-form">
-                    <div class="form-group">
-                        <label>Nombre del Producto</label>
-                        <input type="text" id="prodName" placeholder="Ej: Laptop Dell">
-                    </div>
-                    <div class="form-group">
-                        <label>Descripción</label>
-                        <input type="text" id="prodDesc" placeholder="Opcional">
-                    </div>
-                    <button class="btn btn-primary" onclick="createProduct()" style="margin-bottom: 0;">Crear</button>
-                </div>
-            </div>
-            <div id="productList"></div>
-        </div>
-
-        <!-- Sub: CSV Import -->
-        <div id="config-csv" class="sub-tab-content">
-            <h3 class="section-title">Importar CSV</h3>
-            <div class="alert alert-info">
-                <strong>Formato del CSV:</strong> La primera fila debe ser el encabezado <code>category,product</code>. 
-                Puedes agregar una columna opcional <code>stock</code> para definir el stock inicial (por defecto 0).
-                <div class="csv-format">
-                    <code>category,product,stock<br>Electrónicos,Laptop Dell,50<br>Electrónicos,Mouse Logitech,200<br>Oficina,Papel A4,100</code>
-                </div>
-                <p style="margin-top: 8px;">Si la categoría no existe, se crea automáticamente dentro del almacén activo. Si el stock no se especifica, se establece en 0.</p>
-            </div>
-            <div class="form-group">
-                <label>Archivo CSV</label>
-                <input type="file" id="csvFile" accept=".csv">
-            </div>
-            <button class="btn btn-primary" onclick="importCSV()">📥 Importar CSV</button>
-        </div>
-    </div>
-
-    <!-- ==================== TAB 2: INVENTARIO ==================== -->
-    <div id="inventory" class="tab-content">
-        <h3 class="section-title">Inventario</h3>
-        <div id="inventoryContent"></div>
-    </div>
-
-    <!-- ==================== TAB 3: MOVIMIENTOS ==================== -->
-    <div id="movements" class="tab-content">
-        <h3 class="section-title">Movimientos</h3>
-        <div id="movementsContent"></div>
-    </div>
-
-    <!-- ==================== TAB 4: HISTORIAL ==================== -->
-    <div id="history" class="tab-content">
-        <h3 class="section-title">Historial de Movimientos</h3>
-        <div id="historyContent"></div>
-    </div>
-
-</div>
-
-<script>
-    const API = '/api';
-    let selectedWarehouseId = null;
-
-    // ===== API HELPER with logging =====
-    async function apiFetch(endpoint, options = {}) {
-        const method = options.method || 'GET';
-        const body = options.body ? JSON.parse(options.body) : null;
-
-        console.log(`📤 [API] ${method} ${endpoint}`, body ? { body } : '');
-
-        try {
-            const start = Date.now();
-            const res = await fetch(`${API}${endpoint}`, {
-                headers: { 'Content-Type': 'application/json', ...options.headers },
-                ...options
-            });
-            const duration = Date.now() - start;
-            const data = await res.json();
-
-            if (!res.ok) {
-                console.error(`❌ [API] ${method} ${endpoint} - ${res.status} (${duration}ms)`, data);
-                return { ok: false, status: res.status, data };
-            }
-
-            console.log(`✅ [API] ${method} ${endpoint} - ${res.status} (${duration}ms)`);
-            return { ok: true, status: res.status, data };
-        } catch (err) {
-            console.error(`🚨 [API] ${method} ${endpoint} - Network Error`, err);
-            return {
-                ok: false,
-                status: 0,
-                data: {
-                    error: `Network error: ${err.message}. Is the server running?`,
-                    code: 'NETWORK_ERROR'
-                }
-            };
-        }
-    }
-
-    // ===== TOAST with code display =====
-    function showToast(message, type = 'success') {
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
-
-    // ===== SHOW API ERROR =====
-    function showApiError(result, context = '') {
-        if (!result || result.ok) return;
-
-        const { data, status } = result;
-        const contextLabel = context ? `[${context}] ` : '';
-
-        // Console error with full details
-        console.error(`❌ ${contextLabel}API Error ${status}`, {
-            error: data.error,
-            code: data.code,
-            details: data
-        });
-
-        // Build user-friendly message
-        let message = data.error || 'An unexpected error occurred';
-
-        // Show extra details if available
-        if (data.currentStock !== undefined && data.requested !== undefined) {
-            message += `\nSolicitado: ${data.requested}, Disponible: ${data.currentStock}`;
-        }
-
-        showToast(message, 'error');
-    }
-
-    // ===== TAB NAVIGATION =====
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.tab).classList.add('active');
-
-            // Load tab content
-            if (tab.dataset.tab === 'config') loadConfigTab();
-            if (tab.dataset.tab === 'inventory') loadInventory();
-            if (tab.dataset.tab === 'movements') loadMovementsTab();
-            if (tab.dataset.tab === 'history') loadHistory();
-        });
-    });
-
-    // ===== SUB-TAB NAVIGATION =====
-    document.querySelectorAll('.sub-tab').forEach(subTab => {
-        subTab.addEventListener('click', () => {
-            const parent = subTab.closest('.tab-content');
-            parent.querySelectorAll('.sub-tab').forEach(s => s.classList.remove('active'));
-            parent.querySelectorAll('.sub-tab-content').forEach(s => s.classList.remove('active'));
-            subTab.classList.add('active');
-            document.getElementById(subTab.dataset.sub).classList.add('active');
-        });
-    });
-
-    // ===== GLOBAL WAREHOUSE SELECTOR =====
-    async function loadWarehouseDropdown() {
-        const result = await apiFetch('/warehouses');
-        if (!result.ok) return;
-
-        const select = document.getElementById('globalWarehouse');
-        const currentVal = select.value;
-
-        select.innerHTML = '<option value="">Seleccionar almacén</option>' +
-            result.data.map(w => `<option value="${w[0]}">${w[1]}</option>`).join('');
-
-        // Restore selection or auto-select first
-        if (currentVal && result.data.find(w => w[0] == currentVal)) {
-            select.value = currentVal;
-        } else if (result.data.length > 0 && !selectedWarehouseId) {
-            select.value = result.data[0][0];
-            changeWarehouse();
-        }
-    }
-
-    function changeWarehouse() {
-        selectedWarehouseId = document.getElementById('globalWarehouse').value || null;
-        // Reload active tab
-        const activeTab = document.querySelector('.tab.active');
-        if (activeTab) activeTab.click();
-    }
-
-    // ===== CONFIG TAB =====
-    function loadConfigTab() {
-        loadWarehouseList();
-        if (selectedWarehouseId) {
-            loadCategoryList();
-            loadProductList();
-            loadProductCategoryDropdown();
-        } else {
-            document.getElementById('categoryList').innerHTML = noWarehouseMsg();
-            document.getElementById('productList').innerHTML = noWarehouseMsg();
-            document.getElementById('productCategory').innerHTML = '<option value="">Selecciona un almacén primero</option>';
-        }
-    }
-
-    function noWarehouseMsg() {
-        return '<div class="no-warehouse-banner"><p>⚠️ Selecciona un almacén en el selector superior para gestionar categorías y productos.</p></div>';
-    }
-
-    // --- Warehouses CRUD ---
-    async function loadWarehouseList() {
-        const result = await apiFetch('/warehouses');
-        if (!result.ok) return;
-
-        const container = document.getElementById('warehouseList');
-        if (!result.data.length) {
-            container.innerHTML = '<div class="empty-state"><p>No hay almacenes creados.</p></div>';
-            return;
-        }
-
-        container.innerHTML = result.data.map(w => `
-            <div class="list-item">
-                <div>
-                    <strong>${w[1]}</strong>
-                    ${w[2] ? `<br><small style="color:#888;">${w[2]}</small>` : ''}
-                </div>
-                <button class="btn btn-sm btn-danger" onclick="deleteWarehouse(${w[0]})">🗑️ Eliminar</button>
-            </div>
-        `).join('');
-    }
-
-    async function createWarehouse() {
-        const name = document.getElementById('whName').value.trim();
-        const description = document.getElementById('whDesc').value.trim();
-        if (!name) return showToast('El nombre es obligatorio', 'error');
-
-        const result = await apiFetch('/warehouses', {
-            method: 'POST',
-            body: JSON.stringify({ name, description })
-        });
-
-        if (result.ok) {
-            document.getElementById('whName').value = '';
-            document.getElementById('whDesc').value = '';
-            showToast('Almacén creado');
-            loadWarehouseDropdown();
-            loadWarehouseList();
-        } else {
-            showApiError(result, 'CREAR ALMACÉN');
-        }
-    }
-
-    async function deleteWarehouse(id) {
-        if (!confirm('¿Eliminar este almacén y todo su contenido?')) return;
-        const result = await apiFetch(`/warehouses/${id}`, { method: 'DELETE' });
-        if (result.ok) {
-            showToast('Almacén eliminado');
-            loadWarehouseDropdown();
-            loadWarehouseList();
-        } else {
-            showApiError(result, 'ELIMINAR ALMACÉN');
-        }
-    }
-
-    // --- Categories CRUD ---
-    async function loadCategoryList() {
-        if (!selectedWarehouseId) return;
-
-        const result = await apiFetch(`/warehouses/${selectedWarehouseId}/categories`);
-        if (!result.ok) return;
-
-        const container = document.getElementById('categoryList');
-        if (!result.data.length) {
-            container.innerHTML = '<div class="empty-state"><p>No hay categorías en este almacén.</p></div>';
-            return;
-        }
-
-        container.innerHTML = result.data.map(c => `
-            <div class="list-item">
-                <strong>📁 ${c[1]}</strong>
-                <button class="btn btn-sm btn-danger" onclick="deleteCategory(${c[0]})">🗑️ Eliminar</button>
-            </div>
-        `).join('');
-    }
-
-    async function createCategory() {
-        if (!selectedWarehouseId) return showToast('Selecciona un almacén primero', 'error');
-        const name = document.getElementById('catName').value.trim();
-        if (!name) return showToast('El nombre es obligatorio', 'error');
-
-        const result = await apiFetch(`/warehouses/${selectedWarehouseId}/categories`, {
-            method: 'POST',
-            body: JSON.stringify({ name })
-        });
-
-        if (result.ok) {
-            document.getElementById('catName').value = '';
-            showToast('Categoría creada');
-            loadCategoryList();
-            loadProductCategoryDropdown();
-        } else {
-            showApiError(result, 'CREAR CATEGORÍA');
-        }
-    }
-
-    async function deleteCategory(id) {
-        if (!confirm('¿Eliminar esta categoría y sus productos?')) return;
-        const result = await apiFetch(`/categories/${id}`, { method: 'DELETE' });
-        if (result.ok) {
-            showToast('Categoría eliminada');
-            loadCategoryList();
-            loadProductCategoryDropdown();
-            loadProductList();
-        } else {
-            showApiError(result, 'ELIMINAR CATEGORÍA');
-        }
-    }
-
-    // --- Products CRUD ---
-    async function loadProductCategoryDropdown() {
-        if (!selectedWarehouseId) return;
-
-        const result = await apiFetch(`/warehouses/${selectedWarehouseId}/categories`);
-        if (!result.ok) return;
-
-        const select = document.getElementById('productCategory');
-        select.innerHTML = '<option value="">Seleccionar categoría</option>' +
-            result.data.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
-    }
-
-    async function loadProductList() {
-        if (!selectedWarehouseId) return;
-
-        const result = await apiFetch(`/inventory?warehouseId=${selectedWarehouseId}`);
-        if (!result.ok) return;
-
-        const container = document.getElementById('productList');
-        if (!result.data.length) {
-            container.innerHTML = '<div class="empty-state"><p>No hay productos en este almacén.</p></div>';
-            return;
-        }
-
-        container.innerHTML = result.data.map(p => `
-            <div class="list-item">
-                <div>
-                    <strong>${p[1]}</strong>
-                    ${p[2] ? `<br><small style="color:#888;">${p[2]}</small>` : ''}
-                    <br><small style="color:#667eea;">📁 ${p[5]}</small>
-                </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span class="badge badge-stock">${p[3]} uds</span>
-                    <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p[0]})">✕</button>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    async function createProduct() {
-        if (!selectedWarehouseId) return showToast('Selecciona un almacén primero', 'error');
-        const categoryId = document.getElementById('productCategory').value;
-        const name = document.getElementById('prodName').value.trim();
-        const description = document.getElementById('prodDesc').value.trim();
-
-        if (!categoryId) return showToast('Selecciona una categoría', 'error');
-        if (!name) return showToast('El nombre es obligatorio', 'error');
-
-        const result = await apiFetch(`/categories/${categoryId}/products`, {
-            method: 'POST',
-            body: JSON.stringify({ name, description })
-        });
-
-        if (result.ok) {
-            document.getElementById('prodName').value = '';
-            document.getElementById('prodDesc').value = '';
-            showToast('Producto creado');
-            loadProductList();
-        } else {
-            showApiError(result, 'CREAR PRODUCTO');
-        }
-    }
-
-    async function deleteProduct(id) {
-        if (!confirm('¿Eliminar este producto?')) return;
-        const result = await apiFetch(`/products/${id}`, { method: 'DELETE' });
-        if (result.ok) {
-            showToast('Producto eliminado');
-            loadProductList();
-        } else {
-            showApiError(result, 'ELIMINAR PRODUCTO');
-        }
-    }
-
-    // --- CSV Import ---
-    async function importCSV() {
-        if (!selectedWarehouseId) return showToast('Selecciona un almacén primero', 'error');
-        const file = document.getElementById('csvFile').files[0];
-        if (!file) return showToast('Selecciona un archivo CSV', 'error');
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            console.log('📄 [CSV IMPORT] Starting import with file content');
-            const result = await apiFetch(`/warehouses/${selectedWarehouseId}/import-csv`, {
-                method: 'POST',
-                body: JSON.stringify({ csvData: e.target.result })
-            });
-
-            if (result.ok) {
-                const msg = `CSV importado: ${result.data.imported.categories} categorías, ${result.data.imported.products} productos`;
-                showToast(msg);
-                if (result.data.warnings && result.data.warnings.length > 0) {
-                    console.warn('⚠️ [CSV IMPORT] Warnings during import:', result.data.warnings);
-                }
-                document.getElementById('csvFile').value = '';
-                loadCategoryList();
-                loadProductList();
-                loadProductCategoryDropdown();
-            } else {
-                showApiError(result, 'IMPORTAR CSV');
-            }
-        };
-        reader.onerror = (err) => {
-            console.error('🚨 [CSV IMPORT] Error reading file:', err);
-            showToast('Error al leer el archivo CSV', 'error');
-        };
-        reader.readAsText(file);
-    }
-
-    // ===== TAB 2: INVENTARIO =====
-    async function loadInventory() {
-        const container = document.getElementById('inventoryContent');
-
-        if (!selectedWarehouseId) {
-            container.innerHTML = noWarehouseMsg();
-            return;
-        }
-
-        // Load categories for filter
-        const catResult = await apiFetch(`/warehouses/${selectedWarehouseId}/categories`);
-        const categories = catResult.ok ? catResult.data : [];
-
-        const catOptions = '<option value="">Todas las categorías</option>' +
-            categories.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
-
-        container.innerHTML = `
-            <div class="filter-bar">
-                <input type="text" id="invSearch" placeholder="🔍 Buscar producto..." oninput="filterInventory()">
-                <select id="invCategory" onchange="filterInventory()">${catOptions}</select>
-            </div>
-            <div id="invStats"></div>
-            <div id="invTable"></div>
-        `;
-
-        filterInventory();
-    }
-
-    async function filterInventory() {
-        if (!selectedWarehouseId) return;
-
-        const search = document.getElementById('invSearch').value.toLowerCase();
-        const categoryId = document.getElementById('invCategory').value;
-
-        let url = `/inventory?warehouseId=${selectedWarehouseId}`;
-        if (categoryId) url += `&categoryId=${categoryId}`;
-        if (search) url += `&search=${encodeURIComponent(search)}`;
-
-        const result = await apiFetch(url);
-        if (!result.ok) return;
-
-        const products = result.data;
-
-        // Stats
-        const totalProducts = products.length;
-        const totalStock = products.reduce((sum, p) => sum + p[3], 0);
-        const zeroStock = products.filter(p => p[3] === 0).length;
-        const lowStock = products.filter(p => p[3] > 0 && p[3] <= 5).length;
-
-        document.getElementById('invStats').innerHTML = `
-            <div class="stats-row">
-                <div class="stat-card"><div class="stat-value">${totalProducts}</div><div class="stat-label">Productos</div></div>
-                <div class="stat-card"><div class="stat-value">${totalStock}</div><div class="stat-label">Stock Total</div></div>
-                <div class="stat-card"><div class="stat-value" style="color:#f59e0b;">${lowStock}</div><div class="stat-label">Stock Bajo</div></div>
-                <div class="stat-card"><div class="stat-value" style="color:#ef4444;">${zeroStock}</div><div class="stat-label">Sin Stock</div></div>
-            </div>
-        `;
-
-        // Table
-        if (!products.length) {
-            document.getElementById('invTable').innerHTML = '<div class="empty-state"><p>No se encontraron productos.</p></div>';
-            return;
-        }
-
-        document.getElementById('invTable').innerHTML = `
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Producto</th>
-                            <th>Categoría</th>
-                            <th>Descripción</th>
-                            <th style="text-align:center;">Stock</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${products.map(p => `
-                            <tr>
-                                <td><strong>${p[1]}</strong></td>
-                                <td>${p[5]}</td>
-                                <td style="color:#888;">${p[2] || '-'}</td>
-                                <td style="text-align:center;"><span class="badge badge-stock">${p[3]}</span></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    // ===== TAB 3: MOVIMIENTOS =====
-    let moveProductCache = [];
-    let selectedProducts = []; // Array of { productId, name, stock, quantity }
-
-    async function loadMovementsTab() {
-        const container = document.getElementById('movementsContent');
-
-        if (!selectedWarehouseId) {
-            container.innerHTML = noWarehouseMsg();
-            return;
-        }
-
-        // Load products for search
-        const result = await apiFetch(`/inventory?warehouseId=${selectedWarehouseId}`);
-        moveProductCache = result.ok ? result.data : [];
-
-        // Load recent movements
-        const movResult = await apiFetch(`/movements?warehouseId=${selectedWarehouseId}&limit=20`);
-        const recentMovements = movResult.ok ? movResult.data : [];
-
-        selectedProducts = [];
-
-        container.innerHTML = `
-            <!-- Movement form -->
-            <div class="card" style="max-width:700px;">
-                <h4>Registrar Movimiento</h4>
-                <div class="form-group">
-                    <label>Buscar Producto</label>
-                    <input type="text" id="moveProductSearch" placeholder="🔍 Escribe el nombre del producto..." oninput="searchMoveProduct()" autocomplete="off">
-                    <div id="moveProductResults" style="position:relative;"></div>
-                </div>
-                
-                <!-- Selected products list -->
-                <div id="selectedProductsList" style="margin-bottom:16px;"></div>
-                
-                <div class="form-group">
-                    <label>Tipo de Movimiento</label>
-                    <select id="moveType">
-                        <option value="entry">📥 Entrada</option>
-                        <option value="exit">📤 Salida</option>
+            
+            <div id="navControlsContainer" class="flex items-center gap-4 ms-auto">
+                <div class="relative w-72">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-[10px] font-bold uppercase tracking-wider pr-2 border-r border-zinc-800">Almacén</span>
+                    <select id="globalWarehouse" class="input-field pl-20 py-2 bg-[#15151D] border-zinc-800 font-bold text-white shadow-sm appearance-none text-right pr-10" onchange="changeWarehouse()">
+                        <option value="">Cargando almacenes...</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label>Notas (opcional)</label>
-                    <input type="text" id="moveNotes" placeholder="Ej: Compra a proveedor">
-                </div>
-                <button class="btn btn-success" onclick="registerMovement()" style="width:100%;">✓ Confirmar Movimiento</button>
-            </div>
-
-            <div id="moveResult"></div>
-
-            <!-- Recent movements -->
-            <div class="history-table" style="margin-top:24px;">
-                <h3 class="section-title">Movimientos Recientes</h3>
-                ${recentMovements.length ? `
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Tipo</th>
-                                    <th>Producto</th>
-                                    <th>Cantidad</th>
-                                    <th>Notas</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${recentMovements.map(m => `
-                                    <tr>
-                                        <td>${m[3]}</td>
-                                        <td><span class="badge badge-${m[1]}">${m[1] === 'entry' ? 'Entrada' : 'Salida'}</span></td>
-                                        <td>${m[5]}</td>
-                                        <td><strong>${m[2]}</strong></td>
-                                        <td style="color:#888;">${m[4] || '-'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500 text-xs">
+                        <i class="fa-solid fa-chevron-down"></i>
                     </div>
-                ` : '<div class="empty-state"><p>No hay movimientos registrados.</p></div>'}
-            </div>
-        `;
-    }
-
-    function searchMoveProduct() {
-        const query = document.getElementById('moveProductSearch').value.toLowerCase().trim();
-        const resultsContainer = document.getElementById('moveProductResults');
-
-        if (!query) {
-            resultsContainer.innerHTML = '';
-            return;
-        }
-
-        const filtered = moveProductCache.filter(p => p[1].toLowerCase().includes(query));
-
-        if (!filtered.length) {
-            resultsContainer.innerHTML = '<div style="position:absolute;top:4px;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px;color:#999;font-size:0.9rem;">Sin resultados</div>';
-            return;
-        }
-
-        resultsContainer.innerHTML = `
-            <div style="position:absolute;top:4px;left:0;right:0;background:white;border:1px solid #e5e7eb;border-radius:8px;max-height:200px;overflow-y:auto;z-index:100;">
-                ${filtered.map(p => `
-                    <div style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:0.9rem;"
-                         onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='white'"
-                         onclick="selectMoveProduct(${p[0]}, '${p[1]}', ${p[3]}, '${p[5]}')">
-                        <strong>${p[1]}</strong> <span style="color:#888;">• 📁 ${p[5]} • Stock: ${p[3]}</span>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    function selectMoveProduct(id, name, stock, category) {
-        // Check if product is already selected
-        if (selectedProducts.find(p => p.productId === id)) {
-            showToast('Este producto ya está en la lista', 'error');
-            return;
-        }
-
-        selectedProducts.push({ productId: id, name, stock, quantity: 1 });
-        document.getElementById('moveProductSearch').value = '';
-        document.getElementById('moveProductResults').innerHTML = '';
-        renderSelectedProducts();
-    }
-
-    function renderSelectedProducts() {
-        const container = document.getElementById('selectedProductsList');
-        if (!selectedProducts.length) {
-            container.innerHTML = '';
-            return;
-        }
-
-        const type = document.getElementById('moveType')?.value || 'entry';
-        container.innerHTML = `
-            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#fafafa;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <strong style="color:#667eea;">📦 Productos seleccionados (${selectedProducts.length})</strong>
-                    <button class="btn btn-sm btn-danger" onclick="clearAllProducts()" style="padding:4px 10px;">Limpiar todo</button>
                 </div>
-                <table style="width:100%;font-size:0.85rem;">
-                    <thead>
-                        <tr>
-                            <th style="text-align:left;padding:6px;">Producto</th>
-                            <th style="text-align:center;padding:6px;">Stock Actual</th>
-                            <th style="text-align:center;padding:6px;">Cantidad</th>
-                            <th style="text-align:center;padding:6px;">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${selectedProducts.map((p, idx) => `
-                            <tr>
-                                <td style="padding:6px;"><strong>${p.name}</strong></td>
-                                <td style="text-align:center;padding:6px;"><span class="badge badge-stock">${p.stock}</span></td>
-                                <td style="text-align:center;padding:6px;">
-                                    <input type="number" value="${p.quantity}" min="1" 
-                                           onchange="updateProductQty(${idx}, this.value)"
-                                           style="width:70px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;text-align:center;">
-                                </td>
-                                <td style="text-align:center;padding:6px;">
-                                    <button class="btn btn-sm btn-danger" onclick="removeProduct(${idx})" style="padding:4px 8px;">✕</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
             </div>
-        `;
-    }
+        </header>
 
-    function updateProductQty(idx, qty) {
-        selectedProducts[idx].quantity = parseInt(qty) || 1;
-    }
+        <!-- SCROLLABLE MAIN -->
+        <main id="mainContent" class="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 no-scrollbar bg-[#0D0D12]">
+            <div class="max-w-7xl mx-auto w-full">
 
-    function removeProduct(idx) {
-        selectedProducts.splice(idx, 1);
-        renderSelectedProducts();
-    }
+                <!-- ==================== TAB: CONFIGURACIÓN ==================== -->
+                <div id="config" class="tab-content animate-fade-in">
+                    <div id="configSubTabsContainer" class="flex flex-wrap gap-2 mb-8 bg-[#15151D] p-1.5 rounded-xl border border-zinc-800/50 inline-flex">
+                        <button id="subTabWarehouses" class="sub-tab-btn active" data-sub="config-warehouses">Almacenes</button>
+                        <button id="subTabCategories" class="sub-tab-btn" data-sub="config-categories">Categorías</button>
+                        <button id="subTabProducts" class="sub-tab-btn" data-sub="config-products">Productos</button>
+                        <button id="subTabImport" class="sub-tab-btn" data-sub="config-import">Importar</button>
+                    </div>
 
-    function clearAllProducts() {
-        selectedProducts = [];
-        renderSelectedProducts();
-    }
+                    <!-- SubTab: Almacenes -->
+                    <div id="config-warehouses" class="sub-tab-content animate-slide-up">
+                        <div id="warehouseGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div id="newWarehouseCard" class="card lg:col-span-1 border-none shadow-none bg-[#15151D] h-fit sticky top-0">
+                                <h4 id="newWarehouseTitle" class="font-bold text-white mb-5 flex items-center gap-2"><span class="w-6 h-6 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs"><i class="fa-solid fa-plus"></i></span> Nuevo Almacén</h4>
+                                <div id="newWarehouseForm" class="space-y-4">
+                                    <input type="text" id="whName" placeholder="Nombre" class="input-field bg-[#0D0D12]">
+                                    <input type="text" id="whDesc" placeholder="Descripción" class="input-field bg-[#0D0D12]">
+                                    <button id="btnCreateWarehouse" class="btn btn-primary w-full shadow-[0_0_15px_rgba(79,70,229,0.2)]" onclick="createWarehouse()">Crear Almacén</button>
+                                </div>
+                            </div>
+                            <div id="warehouseListCard" class="lg:col-span-2">
+                                <h4 id="warehouseListTitle" class="font-bold text-white mb-4 pl-1">Listado</h4>
+                                <div id="warehouseList" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </div>
 
-    async function registerMovement() {
-        const type = document.getElementById('moveType').value;
-        const notes = document.getElementById('moveNotes').value.trim();
-        const resultDiv = document.getElementById('moveResult');
+                    <!-- SubTab: Categorías -->
+                    <div id="config-categories" class="sub-tab-content hidden animate-slide-up">
+                        <div id="categoriesGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div id="newCategoryCard" class="card lg:col-span-1 border-none shadow-none h-fit sticky top-0">
+                                <h4 id="newCategoryTitle" class="font-bold text-white mb-5 flex items-center gap-2"><span class="w-6 h-6 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs"><i class="fa-solid fa-plus"></i></span> Nueva Categoría</h4>
+                                <div id="newCategoryForm" class="space-y-4">
+                                    <input type="text" id="catName" placeholder="Nombre de categoría" class="input-field bg-[#0D0D12]">
+                                    <button id="btnCreateCategory" class="btn btn-primary w-full shadow-[0_0_15px_rgba(79,70,229,0.2)]" onclick="createCategory()">Crear Categoría</button>
+                                </div>
+                            </div>
+                            <div id="categoryListCard" class="lg:col-span-2">
+                                <h4 id="categoryListTitle" class="font-bold text-white mb-4 pl-1">Listado</h4>
+                                <div id="categoryList" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </div>
 
-        if (selectedProducts.length === 0) {
-            return showToast('Agrega al menos un producto', 'error');
-        }
+                    <!-- SubTab: Productos -->
+                    <div id="config-products" class="sub-tab-content hidden animate-slide-up">
+                        <div id="productsGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div id="newProductCard" class="card lg:col-span-1 border-none shadow-none h-fit sticky top-0">
+                                <h4 id="newProductTitle" class="font-bold text-white mb-5 flex items-center gap-2"><span class="w-6 h-6 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs"><i class="fa-solid fa-plus"></i></span> Nuevo Producto</h4>
+                                <div id="newProductForm" class="space-y-4">
+                                    <select id="productCategory" class="input-field bg-[#0D0D12] text-zinc-400"></select>
+                                    <input type="text" id="prodName" placeholder="Nombre" class="input-field bg-[#0D0D12]">
+                                    <input type="text" id="prodDesc" placeholder="Descripción" class="input-field bg-[#0D0D12]">
+                                    <button id="btnCreateProduct" class="btn btn-primary w-full shadow-[0_0_15px_rgba(79,70,229,0.2)]" onclick="createProduct()">Crear Producto</button>
+                                </div>
+                            </div>
+                            <div id="productListCard" class="lg:col-span-2">
+                                <h4 id="productListTitle" class="font-bold text-white mb-4 pl-1">Listado</h4>
+                                <div id="productList" class="space-y-3"></div>
+                            </div>
+                        </div>
+                    </div>
 
-        // Validate quantities and stock
-        for (const p of selectedProducts) {
-            if (p.quantity <= 0) {
-                return showToast(`Cantidad inválida para "${p.name}"`, 'error');
-            }
-            if (type === 'exit' && p.quantity > p.stock) {
-                return showToast(`Stock insuficiente para "${p.name}". Stock actual: ${p.stock}`, 'error');
-            }
-        }
+                    <!-- SubTab: Importar -->
+                    <div id="config-import" class="sub-tab-content hidden animate-slide-up">
+                        <div id="importCard" class="card max-w-lg mx-auto border border-zinc-800 bg-[#15151D] p-8 text-center mt-10">
+                            <div class="w-16 h-16 bg-zinc-800/50 rounded-2xl mx-auto flex items-center justify-center mb-6 text-2xl text-indigo-400"><i class="fa-solid fa-file-csv"></i></div>
+                            <h4 id="importTitle" class="font-bold text-white text-lg mb-2">Importar Archivo CSV</h4>
+                            <p id="importFormatInfo" class="text-xs text-zinc-400 mb-6">El archivo debe contener el siguiente formato en encabezados:<br> <code id="csvCodeFormat" class="bg-[#0D0D12] text-indigo-400 px-2 py-1 rounded inline-block mt-2 border border-zinc-800">category,product,stock</code></p>
+                            <div id="importInputContainer" class="max-w-sm mx-auto space-y-4">
+                                <input type="file" id="csvFile" accept=".csv" class="w-full text-sm text-zinc-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-indigo-500/10 file:text-indigo-400 hover:file:bg-indigo-500/20 cursor-pointer bg-[#0D0D12] border border-zinc-800 rounded-xl">
+                                <button id="btnImportCSV" class="btn btn-success w-full" onclick="importCSV()">Procesar Datos</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-        const products = selectedProducts.map(p => ({ productId: p.productId, quantity: p.quantity }));
-        console.log('🔄 [MOVEMENT] Registering movement', { type, productsCount: products.length, notes });
+                <!-- ==================== TAB: INVENTARIO ==================== -->
+                <div id="inventory" class="tab-content hidden animate-fade-in">
+                    <div id="inventoryContent"></div>
+                </div>
 
-        const result = await apiFetch('/movements', {
-            method: 'POST',
-            body: JSON.stringify({ products, type, notes })
+                <!-- ==================== TAB: MOVIMIENTOS ==================== -->
+                <div id="movements" class="tab-content hidden animate-fade-in">
+                    <div id="movementsContent"></div>
+                </div>
+
+                <!-- ==================== TAB: HISTORIAL ==================== -->
+                <div id="history" class="tab-content hidden animate-fade-in">
+                    <div id="historyContent"></div>
+                </div>
+
+                <!-- ==================== TAB: CIERRE DIARIO ==================== -->
+                <div id="summary" class="tab-content hidden animate-fade-in">
+                    <div id="summaryContent"></div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script id="appScript" src="js/app.js"></script>
+    <script>
+        // Pequeño script para el título de la página
+        document.querySelectorAll('.tab-btn-main').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const title = document.getElementById('pageTitle');
+                if(title) title.innerText = e.target.innerText.replace(/[^\w\sñáéíóúÁÉÍÓÚ]/g, '').trim();
+            });
         });
-
-        if (result.ok) {
-            const summary = result.data.results.map(r => `${r.productName}: ${r.newStock} uds`).join('<br>');
-            resultDiv.innerHTML = `
-                <div class="movement-result success">
-                    ✅ <strong>${result.data.type === 'entry' ? 'Entrada' : 'Salida'} de ${result.data.totalProducts} producto(s)</strong> registrada correctamente.<br>
-                    <div style="margin-top:8px;font-size:0.9rem;">${summary}</div>
-                </div>
-            `;
-            showToast('Movimiento registrado');
-
-            // Clear form
-            selectedProducts = [];
-            document.getElementById('moveNotes').value = '';
-
-            // Reload to refresh product cache and recent movements
-            loadMovementsTab();
-        } else {
-            showApiError(result, 'REGISTRAR MOVIMIENTO');
-            resultDiv.innerHTML = `
-                <div class="movement-result error">
-                    ❌ Error: ${result.data.error}
-                </div>
-            `;
-        }
-    }
-
-    // ===== TAB 4: HISTORIAL =====
-    async function loadHistory() {
-        const container = document.getElementById('historyContent');
-
-        if (!selectedWarehouseId) {
-            container.innerHTML = noWarehouseMsg();
-            return;
-        }
-
-        const result = await apiFetch(`/movements?warehouseId=${selectedWarehouseId}`);
-        if (!result.ok) return;
-
-        const movements = result.data;
-
-        if (!movements.length) {
-            container.innerHTML = '<div class="empty-state"><p>No hay movimientos registrados.</p></div>';
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Producto</th>
-                            <th>Tipo</th>
-                            <th>Cantidad</th>
-                            <th>Fecha</th>
-                            <th>Notas</th>
-                            <th>Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${movements.map(m => `
-                            <tr>
-                                <td><strong>${m[5]}</strong></td>
-                                <td><span class="badge badge-${m[1]}">${m[1] === 'entry' ? 'Entrada' : 'Salida'}</span></td>
-                                <td><strong>${m[2]}</strong></td>
-                                <td>${m[3]}</td>
-                                <td style="color:#888;">${m[4] || '-'}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteMovement(${m[0]})">🗑️ Eliminar</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    async function deleteMovement(id) {
-        if (!confirm('¿Eliminar este movimiento? Se revertirá el stock del producto.')) return;
-
-        console.log(`🗑️ [HISTORY] Deleting movement #${id}`);
-
-        const result = await apiFetch(`/movements/${id}`, { method: 'DELETE' });
-
-        if (result.ok) {
-            showToast(result.data.message || 'Movimiento eliminado. Stock revertido.');
-            loadHistory();
-            // If inventory tab is visible, refresh it too
-            if (document.querySelector('.tab.active[data-tab="inventory"]')) {
-                loadInventory();
-            }
-        } else {
-            showApiError(result, 'ELIMINAR MOVIMIENTO');
-        }
-    }
-
-    // ===== INITIAL LOAD =====
-    loadWarehouseDropdown();
-    loadConfigTab();
-</script>
-
+    </script>
 </body>
 </html>

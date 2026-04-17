@@ -7,6 +7,13 @@ const log = require('./logger');
 const app = express();
 const PORT = 3000;
 
+function getLocalDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -26,14 +33,32 @@ app.use((req, res, next) => {
 // Global error handling middleware
 app.use((err, req, res, next) => {
     log.error('EXPRESS_MIDDLEWARE', `Unhandled error in ${req.method} ${req.url}`, err);
-    res.status(500).json({
-        error: 'An unexpected error occurred on the server',
-        code: 'INTERNAL_SERVER_ERROR',
-        timestamp: new Date().toISOString()
-    });
+    const errorResponse = buildErrorResponse(err);
+    res.status(errorResponse.status).json(errorResponse.body);
 });
 
 // ==================== HELPER ====================
+
+function buildErrorResponse(err) {
+    if (err && typeof err.message === 'string' && err.message.includes('UNIQUE constraint failed')) {
+        return {
+            status: 409,
+            body: {
+                error: 'The record already exists and cannot be duplicated',
+                code: 'DUPLICATE_RECORD'
+            }
+        };
+    }
+
+    return {
+        status: 500,
+        body: {
+            error: 'An unexpected error occurred',
+            code: 'INTERNAL_SERVER_ERROR',
+            timestamp: new Date().toISOString()
+        }
+    };
+}
 
 /**
  * Wraps a route handler with consistent error handling.
@@ -45,11 +70,8 @@ function handleRoute(handler) {
             handler(req, res);
         } catch (err) {
             log.error('ROUTE_HANDLER', `Error in ${req.method} ${req.url}`, err);
-            res.status(500).json({
-                error: 'An unexpected error occurred',
-                code: 'INTERNAL_SERVER_ERROR',
-                timestamp: new Date().toISOString()
-            });
+            const errorResponse = buildErrorResponse(err);
+            res.status(errorResponse.status).json(errorResponse.body);
         }
     };
 }
@@ -287,6 +309,190 @@ async function start() {
         });
     }));
 
+    app.put('/api/products/:id', handleRoute((req, res) => {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({
+                error: 'Invalid product ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'id'
+            });
+        }
+
+        const { name, quantity } = req.body;
+
+        // Validate that at least one field is being updated
+        if ((name === undefined || name === null) && (quantity === undefined || quantity === null)) {
+            return res.status(400).json({
+                error: 'At least one field (name or quantity) must be provided for update',
+                code: 'VALIDATION_ERROR',
+                field: 'body'
+            });
+        }
+
+        // Get product info before updating
+        const prodExists = db.exec(
+            'SELECT id, name, category_id, quantity FROM products WHERE id = ?',
+            [id]
+        );
+        if (prodExists.length === 0 || prodExists[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Product with ID ${id} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const oldProduct = prodExists[0].values[0];
+        const oldName = oldProduct[1];
+        const oldQuantity = oldProduct[3];
+        const categoryId = oldProduct[2];
+
+        // Validate and prepare updates
+        const updates = {};
+        const params = [];
+
+        if (name !== undefined && name !== null) {
+            const sanitizedName = typeof name === 'string' ? name.trim() : name;
+            if (!sanitizedName || typeof sanitizedName !== 'string' || sanitizedName.length === 0) {
+                return res.status(400).json({
+                    error: 'Product name must be a non-empty string',
+                    code: 'VALIDATION_ERROR',
+                    field: 'name'
+                });
+            }
+
+            // Check if another product with same name exists in same category
+            const duplicateCheck = db.exec(
+                'SELECT id FROM products WHERE name = ? AND category_id = ? AND id != ?',
+                [sanitizedName, categoryId, id]
+            );
+            if (duplicateCheck.length > 0 && duplicateCheck[0].values.length > 0) {
+                return res.status(409).json({
+                    error: `A product with name "${sanitizedName}" already exists in this category`,
+                    code: 'DUPLICATE_NAME',
+                    field: 'name'
+                });
+            }
+
+            updates.name = sanitizedName;
+            params.push(sanitizedName);
+        }
+
+        if (quantity !== undefined && quantity !== null) {
+            const qty = parseInt(quantity);
+            if (isNaN(qty) || qty < 0) {
+                return res.status(400).json({
+                    error: 'Product quantity must be a non-negative integer',
+                    code: 'VALIDATION_ERROR',
+                    field: 'quantity'
+                });
+            }
+            updates.quantity = qty;
+            params.push(qty);
+        }
+
+        // Build and execute update query
+        const updateFields = Object.keys(updates)
+            .map(field => `${field} = ?`)
+            .join(', ');
+        params.push(id);
+
+        db.run(`UPDATE products SET ${updateFields} WHERE id = ?`, params);
+        db.save();
+
+        // Log the update
+        const changes = [];
+        if (updates.name) changes.push(`name: "${oldName}" → "${updates.name}"`);
+        if (updates.quantity !== undefined) changes.push(`quantity: ${oldQuantity} → ${updates.quantity}`);
+
+        log.action('PRODUCT_UPDATE', `Updated product ID ${id}: ${changes.join(', ')}`);
+
+        res.json({
+            message: 'Product updated successfully',
+            id,
+            changes: {
+                ...(updates.name && { name: { old: oldName, new: updates.name } }),
+                ...(updates.quantity !== undefined && { quantity: { old: oldQuantity, new: updates.quantity } })
+            }
+        });
+    }));
+
+    // ===== QUICK STOCK UPDATE =====
+    // PATCH endpoint for quick quantity updates from inventory view
+    app.patch('/api/products/:id/quantity', handleRoute((req, res) => {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({
+                error: 'Invalid product ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'id'
+            });
+        }
+
+        const { quantity } = req.body;
+
+        if (quantity === undefined || quantity === null) {
+            return res.status(400).json({
+                error: 'Quantity is required',
+                code: 'VALIDATION_ERROR',
+                field: 'quantity'
+            });
+        }
+
+        const qty = parseInt(quantity);
+        if (isNaN(qty) || qty < 0) {
+            return res.status(400).json({
+                error: 'Quantity must be a non-negative integer',
+                code: 'VALIDATION_ERROR',
+                field: 'quantity'
+            });
+        }
+
+        const productInfo = db.exec(`
+            SELECT p.id, p.name, p.quantity, c.warehouse_id
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            WHERE p.id = ?
+        `, [id]);
+
+        if (productInfo.length === 0 || productInfo[0].values.length === 0) {
+            return res.status(404).json({
+                error: `Product with ID ${id} not found`,
+                code: 'NOT_FOUND'
+            });
+        }
+
+        const [, productName, oldQuantity, warehouseId] = productInfo[0].values[0];
+        const diff = qty - oldQuantity;
+
+        if (diff !== 0) {
+            const movementType = diff > 0 ? 'entry' : 'exit';
+            const movementQty = Math.abs(diff);
+            const today = getLocalDateString();
+            
+            db.run(
+                'INSERT INTO movements (product_id, warehouse_id, type, quantity, date, notes) VALUES (?, ?, ?, ?, ?, ?)',
+                [id, warehouseId, movementType, movementQty, today, 'Ajuste manual de inventario']
+            );
+        }
+
+        // Update quantity
+        db.run('UPDATE products SET quantity = ? WHERE id = ?', [qty, id]);
+        db.save();
+
+        log.action('STOCK_UPDATE', `Updated stock for "${productName}" (ID: ${id}): ${oldQuantity} → ${qty} unidades (Recorded as movement: ${diff})`);
+
+        res.json({
+            message: 'Stock updated successfully',
+            id,
+            product: productName,
+            quantity: {
+                old: oldQuantity,
+                new: qty
+            }
+        });
+    }));
+
     app.delete('/api/products/:id', handleRoute((req, res) => {
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
@@ -429,8 +635,15 @@ async function start() {
             });
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateString();
         const results = [];
+
+        const insertMovement = db.prepare(
+            'INSERT INTO movements (product_id, warehouse_id, type, quantity, date, notes) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        const updateStock = db.prepare(
+            'UPDATE products SET quantity = quantity + ? WHERE id = ?'
+        );
 
         // Process each product
         for (const item of items) {
@@ -496,14 +709,7 @@ async function start() {
 
             const stockChange = type === 'entry' ? parsedQty : -parsedQty;
 
-            const insertMovement = db.prepare(
-                'INSERT INTO movements (product_id, warehouse_id, type, quantity, date, notes) VALUES (?, ?, ?, ?, ?, ?)'
-            );
             insertMovement.run([parsedId, warehouseId, type, parsedQty, today, notes || '']);
-
-            const updateStock = db.prepare(
-                'UPDATE products SET quantity = quantity + ? WHERE id = ?'
-            );
             updateStock.run([stockChange, parsedId]);
 
             const newStock = currentStock + stockChange;
@@ -528,7 +734,7 @@ async function start() {
     }));
 
     app.get('/api/movements', handleRoute((req, res) => {
-        const { warehouseId, limit } = req.query;
+        const { warehouseId, limit, date } = req.query;
 
         let query = `
             SELECT
@@ -546,6 +752,7 @@ async function start() {
             JOIN warehouses w ON c.warehouse_id = w.id
         `;
         const params = [];
+        const conditions = [];
 
         if (warehouseId) {
             const whId = parseInt(warehouseId);
@@ -556,8 +763,24 @@ async function start() {
                     field: 'warehouseId'
                 });
             }
-            query += ' WHERE w.id = ?';
+            conditions.push('w.id = ?');
             params.push(whId);
+        }
+
+        if (date) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                return res.status(400).json({
+                    error: 'Invalid date format: must be YYYY-MM-DD',
+                    code: 'VALIDATION_ERROR',
+                    field: 'date'
+                });
+            }
+            conditions.push('DATE(m.date) = ?');
+            params.push(date);
+        }
+
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
         }
 
         query += ' ORDER BY m.date DESC, m.id DESC';
@@ -579,6 +802,160 @@ async function start() {
 
         const result = db.exec(query, params);
         res.json(result.length > 0 ? result[0].values : []);
+    }));
+
+    // ===== SUMMARY =====
+    app.get('/api/summary', handleRoute((req, res) => {
+        const { warehouseId } = req.query;
+
+        if (!warehouseId) {
+            return res.status(400).json({
+                error: 'Warehouse ID is required',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
+
+        const whId = parseInt(warehouseId);
+        if (isNaN(whId)) {
+            return res.status(400).json({
+                error: 'Invalid warehouse ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
+
+        const query = `
+            SELECT
+                p.id,
+                p.name as product_name,
+                c.name as category_name,
+                COALESCE(SUM(CASE WHEN m.type = 'entry' THEN m.quantity ELSE 0 END), 0) as total_entries,
+                COALESCE(SUM(CASE WHEN m.type = 'exit' THEN m.quantity ELSE 0 END), 0) as total_exits,
+                p.quantity as current_stock
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            LEFT JOIN movements m ON p.id = m.product_id
+            WHERE c.warehouse_id = ?
+            GROUP BY p.id, p.name, c.name, p.quantity
+            ORDER BY p.name ASC
+        `;
+
+        log.db('READ', `Fetching summary for warehouse ${whId}`);
+        
+        const result = db.exec(query, [whId]);
+        res.json(result.length > 0 ? result[0].values : []);
+    }));
+
+    // ===== SUMMARY BY DATE =====
+    app.get('/api/summary-by-date', handleRoute((req, res) => {
+        const { warehouseId, date } = req.query;
+
+        if (!warehouseId) {
+            return res.status(400).json({
+                error: 'Warehouse ID is required',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
+
+        const whId = parseInt(warehouseId);
+        if (isNaN(whId)) {
+            return res.status(400).json({
+                error: 'Invalid warehouse ID: must be a number',
+                code: 'VALIDATION_ERROR',
+                field: 'warehouseId'
+            });
+        }
+
+        // Date format: YYYY-MM-DD, default to today
+        const selectedDate = date || getLocalDateString();
+
+        // Validate date format
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+            return res.status(400).json({
+                error: 'Invalid date format: must be YYYY-MM-DD',
+                code: 'VALIDATION_ERROR',
+                field: 'date'
+            });
+        }
+
+        const query = `
+            SELECT
+                p.id,
+                p.name as product_name,
+                c.name as category_name,
+                -- Entradas del día seleccionado
+                COALESCE(SUM(CASE WHEN m.type = 'entry' AND DATE(m.date) = ? THEN m.quantity ELSE 0 END), 0) as day_entries,
+                -- Salidas del día seleccionado
+                COALESCE(SUM(CASE WHEN m.type = 'exit' AND DATE(m.date) = ? THEN m.quantity ELSE 0 END), 0) as day_exits,
+                -- Entradas posteriores (desde el día siguiente en adelante)
+                COALESCE(SUM(CASE WHEN m.type = 'entry' AND DATE(m.date) > ? THEN m.quantity ELSE 0 END), 0) as future_entries,
+                -- Salidas posteriores (desde el día siguiente en adelante)
+                COALESCE(SUM(CASE WHEN m.type = 'exit' AND DATE(m.date) > ? THEN m.quantity ELSE 0 END), 0) as future_exits,
+                -- Stock actual
+                p.quantity as current_stock
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            LEFT JOIN movements m ON p.id = m.product_id AND c.warehouse_id = m.warehouse_id
+            WHERE c.warehouse_id = ?
+            GROUP BY p.id, p.name, c.name, p.quantity
+            ORDER BY p.name ASC
+        `;
+
+        log.db('READ', `Fetching summary for warehouse ${whId} on date ${selectedDate}`);
+        
+        const result = db.exec(query, [selectedDate, selectedDate, selectedDate, selectedDate, whId]);
+        const rows = result.length > 0 ? result[0].values : [];
+
+        // Transform the data to include calculated initial stock correctly
+        const transformedRows = rows.map(row => {
+            const [id, productName, categoryName, dayEntries, dayExits, futureEntries, futureExits, currentStock] = row;
+            
+            // finalStock at the end of the selected date:
+            const stockEnd = currentStock - futureEntries + futureExits;
+            // initialStock at the beginning of the selected date:
+            const stockStart = stockEnd - dayEntries + dayExits;
+            
+            return [
+                id,
+                productName,
+                categoryName,
+                stockStart,             // Stock inicial del día
+                dayEntries,              // Entradas del día
+                dayExits,                // Salidas del día
+                stockEnd                 // Stock final del día
+            ];
+        });
+
+        res.json(transformedRows);
+    }));
+
+    app.post('/api/warehouses/:warehouseId/set-start-of-day', handleRoute((req, res) => {
+        const warehouseId = parseInt(req.params.warehouseId);
+        if (isNaN(warehouseId)) {
+            return res.status(400).json({ error: 'Invalid warehouse ID' });
+        }
+
+        const today = getLocalDateString();
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterday = getLocalDateString(yesterdayDate);
+
+        // Move all current day's manual adjustments to yesterday
+        // allowing the adjusted stock to be the "mathematical start" of today
+        db.run(`
+            UPDATE movements 
+            SET date = ? 
+            WHERE warehouse_id = ? 
+            AND date = ? 
+            AND notes = 'Ajuste manual de inventario'
+        `, [yesterday, warehouseId, today]);
+        
+        db.save();
+
+        log.action('SET_START_DAY', `Set manual adjustments to yesterday for warehouse ${warehouseId}`);
+        res.json({ success: true, message: 'Stock starting point has been defined' });
     }));
 
     app.delete('/api/movements/:id', handleRoute((req, res) => {
@@ -704,7 +1081,7 @@ async function start() {
         }
 
         const warehouseName = whExists[0].values[0][1];
-        const lines = csvData.trim().split('\n');
+        const lines = csvData.replace(/\r/g, '').trim().split('\n');
 
         if (lines.length < 2) {
             return res.status(400).json({
@@ -731,27 +1108,21 @@ async function start() {
         const productIdx = header.indexOf('product');
         const stockIdx = header.includes('stock') ? header.indexOf('stock') : -1;
 
-        const getCategory = db.prepare(
-            'SELECT id FROM categories WHERE name = ? AND warehouse_id = ?'
-        );
-        const insertCategory = db.prepare(
-            'INSERT OR IGNORE INTO categories (name, warehouse_id) VALUES (?, ?)'
-        );
-        const insertProduct = db.prepare(
-            'INSERT OR IGNORE INTO products (name, description, category_id, quantity) VALUES (?, "", ?, ?)'
-        );
-        const updateStock = db.prepare(
-            'UPDATE products SET quantity = quantity + ? WHERE name = ? AND category_id = ?'
-        );
-
         let imported = { categories: 0, products: 0 };
+        let updatedProducts = 0;
         let skippedRows = 0;
         let errors = [];
 
         for (let i = 1; i < lines.length; i++) {
             const values = lines[i].split(',').map(v => v.trim());
-            const categoryName = values[categoryIdx];
-            const productName = values[productIdx];
+            const requiredColumns = stockIdx >= 0 ? 3 : 2;
+            if (values.length < requiredColumns) {
+                skippedRows++;
+                errors.push(`Row ${i + 1}: Insufficient columns, expected at least ${requiredColumns}, got ${values.length}, skipped`);
+                continue;
+            }
+            const categoryName = values[categoryIdx] || '';
+            const productName = values[productIdx] || '';
             const stockValue = stockIdx >= 0 ? parseInt(values[stockIdx]) || 0 : 0;
 
             if (!categoryName || !productName) {
@@ -761,19 +1132,51 @@ async function start() {
             }
 
             try {
-                // Create category if not exists
-                insertCategory.run([categoryName, warehouseId]);
+                let catResult = db.exec(
+                    'SELECT id FROM categories WHERE name = ? AND warehouse_id = ?',
+                    [categoryName, warehouseId]
+                );
 
-                // Get category ID
-                const catResult = getCategory.run([categoryName, warehouseId]);
-                if (catResult.values.length > 0) {
-                    const categoryId = catResult.values[0][0];
-                    insertProduct.run([productName, categoryId, stockValue]);
-                    // If stock was specified and product already existed, update its stock
-                    if (stockIdx >= 0 && stockValue > 0) {
-                        updateStock.run([stockValue, productName, categoryId]);
+                if (!catResult.length || !catResult[0].values.length) {
+                    db.run(
+                        'INSERT INTO categories (name, warehouse_id) VALUES (?, ?)',
+                        [categoryName, warehouseId]
+                    );
+                    imported.categories++;
+                    catResult = db.exec(
+                        'SELECT id FROM categories WHERE name = ? AND warehouse_id = ?',
+                        [categoryName, warehouseId]
+                    );
+                }
+                
+                if (catResult && catResult.length > 0 && catResult[0].values.length > 0) {
+                    const categoryId = catResult[0].values[0][0];
+                    
+                    // Check if product already exists
+                    const existingProduct = db.exec(
+                        'SELECT id, quantity FROM products WHERE name = ? AND category_id = ?',
+                        [productName, categoryId]
+                    );
+                    
+                    if (existingProduct && existingProduct.length > 0 && existingProduct[0].values.length > 0) {
+                        // Product exists: update stock (add to existing)
+                        if (stockValue > 0) {
+                            db.run(
+                                'UPDATE products SET quantity = quantity + ? WHERE name = ? AND category_id = ?',
+                                [stockValue, productName, categoryId]
+                            );
+                            updatedProducts++;
+                        }
+                    } else {
+                        // New product: insert with stock value (set initial quantity)
+                        db.run(
+                            'INSERT INTO products (name, description, category_id, quantity) VALUES (?, "", ?, ?)',
+                            [productName, categoryId, stockValue]
+                        );
+                        imported.products++;
                     }
-                    imported.products++;
+                } else {
+                    errors.push(`Row ${i + 1}: Category "${categoryName}" could not be found or created`);
                 }
             } catch (rowErr) {
                 errors.push(`Row ${i + 1} (${categoryName} > ${productName}): ${rowErr.message}`);
@@ -781,17 +1184,12 @@ async function start() {
             }
         }
 
-        // Count new categories
-        const catCount = db.exec(
-            'SELECT COUNT(*) FROM categories WHERE warehouse_id = ?', [warehouseId]
-        );
-        imported.categories = catCount[0].values[0][0];
-
         db.save();
 
         log.action('CSV_IMPORT', `Imported CSV to warehouse "${warehouseName}"`, {
             warehouseId,
             imported,
+            updatedProducts,
             skippedRows,
             errors: errors.length > 0 ? errors : null
         });
@@ -799,13 +1197,14 @@ async function start() {
         res.json({
             message: 'CSV imported successfully',
             imported,
+            updatedProducts,
             skippedRows,
             warnings: errors.length > 0 ? errors : undefined
         });
     }));
 
     // ===== SERVE FRONTEND =====
-    app.get('/{*path}', (req, res) => {
+    app.use((req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'index.html'));
     });
 

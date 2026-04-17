@@ -1,0 +1,399 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --app-bg: #07111f;
+    --app-panel: rgba(10, 18, 34, 0.82);
+    --app-panel-strong: rgba(9, 15, 28, 0.94);
+    --app-card: rgba(17, 25, 44, 0.88);
+    --app-line: rgba(146, 184, 255, 0.16);
+    --app-line-strong: rgba(125, 211, 252, 0.34);
+    --app-text: #d9e4f3;
+    --app-muted: #88a0bb;
+    --app-accent: #38bdf8;
+    --app-accent-2: #22c55e;
+    --app-glow: rgba(56, 189, 248, 0.28);
+    --app-warm: rgba(251, 191, 36, 0.18);
+  }
+
+  html {
+    @apply bg-slate-950;
+  }
+
+  body {
+    @apply font-sans text-[13px] overflow-hidden selection:bg-sky-400/30;
+    background:
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), transparent 30%),
+      radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 26%),
+      radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.12), transparent 24%),
+      linear-gradient(180deg, #0a1322 0%, #09111d 46%, #070d17 100%);
+    color: var(--app-text);
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-family: 'Space Grotesk', 'Manrope', sans-serif;
+    letter-spacing: -0.035em;
+  }
+  
+  /* Scrollbar override for dark theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-700;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 text-sm;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 18px 40px rgba(2, 8, 23, 0.24);
+  }
+  .btn-primary {
+    @apply text-white focus:outline-none active:scale-95 transition-all duration-300;
+    background-image: linear-gradient(135deg, rgba(14, 165, 233, 0.96), rgba(59, 130, 246, 0.92) 52%, rgba(16, 185, 129, 0.88));
+    box-shadow: 0 20px 50px rgba(14, 165, 233, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+  .btn-success {
+    @apply text-white focus:outline-none shadow-sm active:scale-95 border-none transition-all duration-300;
+    background-image: linear-gradient(135deg, rgba(14, 165, 233, 0.96), rgba(59, 130, 246, 0.92) 52%, rgba(16, 185, 129, 0.88));
+    box-shadow: 0 20px 50px rgba(14, 165, 233, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+  .btn-danger {
+    @apply bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 hover:border-rose-500/40 hover:shadow-[0_0_20px_rgba(244,63,94,0.4)] shadow-sm active:scale-95 transition-all duration-300;
+  }
+
+  .btn-primary:hover,
+  .btn-success:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 26px 54px rgba(14, 165, 233, 0.28), 0 0 0 1px rgba(125, 211, 252, 0.2);
+  }
+
+  .btn-primary:focus,
+  .btn-success:focus {
+    box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.65), 0 0 0 7px rgba(56, 189, 248, 0.16), 0 24px 56px rgba(14, 165, 233, 0.22);
+  }
+  
+  .card {
+    @apply rounded-2xl p-5 transition-all duration-300;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+      linear-gradient(180deg, rgba(12, 19, 34, 0.94), rgba(11, 17, 30, 0.88));
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    box-shadow:
+      0 24px 60px rgba(2, 8, 23, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+  }
+  .card:hover {
+    border-color: rgba(125, 211, 252, 0.22);
+    box-shadow:
+      0 26px 64px rgba(2, 8, 23, 0.4),
+      0 0 0 1px rgba(56, 189, 248, 0.08);
+    transform: translateY(-2px);
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-2.5 rounded-xl focus:outline-none transition-all duration-300 text-sm text-zinc-100 placeholder:text-zinc-500;
+    background: linear-gradient(180deg, rgba(7, 12, 24, 0.96), rgba(10, 17, 31, 0.92));
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+  .input-field:hover {
+    border-color: rgba(125, 211, 252, 0.35);
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.08);
+  }
+  .input-field:focus {
+    border-color: rgba(125, 211, 252, 0.88);
+    box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.6), 0 0 0 7px rgba(56, 189, 248, 0.12);
+  }
+  
+  /* Sidebar Navigation */
+  .tab-btn-main {
+    @apply w-full text-left flex items-center gap-3 py-3 px-4 rounded-xl font-medium text-zinc-400 transition-all duration-300 text-sm mb-2;
+    position: relative;
+    border: 1px solid transparent;
+    overflow: hidden;
+  }
+  .tab-btn-main.active {
+    @apply text-white;
+    background:
+      linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(37, 99, 235, 0.4)),
+      linear-gradient(180deg, rgba(12, 19, 34, 0.92), rgba(12, 18, 30, 0.94));
+    border-color: rgba(125, 211, 252, 0.24);
+    box-shadow: 0 18px 40px rgba(14, 165, 233, 0.14);
+    transform: translateX(4px);
+  }
+  .tab-btn-main:not(.active):hover {
+    @apply text-sky-100;
+    background: rgba(15, 23, 42, 0.52);
+    border-color: rgba(125, 211, 252, 0.16);
+    box-shadow: 0 14px 30px rgba(2, 8, 23, 0.2);
+  }
+
+  .sub-tab-btn {
+    @apply px-4 py-2 text-xs font-semibold rounded-lg transition-all duration-300;
+    backdrop-filter: blur(10px);
+  }
+  .sub-tab-btn.active {
+    @apply text-sky-200;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(59, 130, 246, 0.16));
+    border: 1px solid rgba(125, 211, 252, 0.4);
+    box-shadow: 0 12px 28px rgba(14, 165, 233, 0.14);
+  }
+  .sub-tab-btn:not(.active) {
+    @apply text-zinc-500 border border-transparent hover:text-sky-200;
+    background: rgba(15, 23, 42, 0.18);
+  }
+  .sub-tab-btn:not(.active):hover {
+    border-color: rgba(56, 189, 248, 0.2);
+    background: rgba(14, 165, 233, 0.08);
+  }
+
+  /* Dark Theme Table */
+  .table-compact {
+    @apply overflow-hidden rounded-2xl border-hidden;
+  }
+  .table-compact th {
+    @apply px-4 py-4 text-[11px] font-semibold text-slate-300 tracking-wider border-b;
+    background: linear-gradient(180deg, rgba(17, 24, 39, 0.96), rgba(15, 23, 42, 0.92));
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+  .table-compact td {
+    @apply px-4 py-3 text-sm border-b text-zinc-300 transition-colors;
+    background: rgba(11, 17, 30, 0.82);
+    border-color: rgba(148, 163, 184, 0.08);
+  }
+  .table-compact tr:hover td {
+    background: rgba(15, 23, 42, 0.92);
+  }
+  .table-compact tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+#appAmbient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(34, 211, 238, 0.12), transparent 20%),
+    radial-gradient(circle at 78% 10%, rgba(59, 130, 246, 0.16), transparent 24%),
+    radial-gradient(circle at 50% 100%, rgba(16, 185, 129, 0.08), transparent 30%);
+  filter: blur(24px);
+}
+
+#appSidebar,
+#mainNavbar,
+#mainContent {
+  position: relative;
+  z-index: 1;
+}
+
+#appSidebar {
+  background:
+    linear-gradient(180deg, rgba(9, 15, 28, 0.96), rgba(8, 14, 24, 0.9)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+  border-right-color: rgba(148, 163, 184, 0.12);
+  box-shadow: 24px 0 60px rgba(2, 8, 23, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+#appSidebar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(125, 211, 252, 0.32), transparent);
+  opacity: 0.7;
+}
+
+#navLogoIcon {
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.95), rgba(59, 130, 246, 0.92) 48%, rgba(16, 185, 129, 0.85));
+  box-shadow: 0 16px 38px rgba(14, 165, 233, 0.26);
+}
+
+#navLogoText {
+  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  letter-spacing: -0.05em;
+}
+
+#mainNavbar {
+  height: auto;
+  min-height: 5rem;
+  background: rgba(7, 13, 23, 0.68);
+  border-bottom-color: rgba(148, 163, 184, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+#mainNavbar::after {
+  content: '';
+  position: absolute;
+  left: 2rem;
+  right: 2rem;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.28), transparent);
+}
+
+#pageTitle {
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  line-height: 1.05;
+}
+
+#pageEyebrow {
+  margin-bottom: 0.35rem;
+}
+
+#mainContent {
+  background: linear-gradient(180deg, rgba(8, 12, 22, 0.4), rgba(8, 12, 22, 0.1));
+}
+
+#mainContent::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(transparent 0%, rgba(125, 211, 252, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 0%, rgba(125, 211, 252, 0.03) 1px, transparent 1px);
+  background-size: 100% 120px, 120px 100%;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.4), transparent 75%);
+}
+
+#configSubTabsContainer,
+#historyHeader,
+#summaryHeader {
+  background: rgba(10, 18, 34, 0.68);
+  border-color: rgba(148, 163, 184, 0.12);
+  box-shadow: 0 20px 45px rgba(2, 8, 23, 0.24);
+  backdrop-filter: blur(14px);
+}
+
+#sidebarMenu .card,
+#importCard {
+  position: relative;
+  overflow: hidden;
+}
+
+#sidebarMenu .card::before,
+#importCard::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), transparent 42%, rgba(16, 185, 129, 0.12));
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.tab-btn-main::before,
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 30%);
+  opacity: 0.6;
+}
+
+.table-compact tr {
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+
+.table-compact tr:hover {
+  transform: translateX(2px);
+}
+
+@media (max-width: 1024px) {
+  #appBody {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  #appSidebar {
+    width: 100%;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    box-shadow: 0 22px 42px rgba(2, 8, 23, 0.22);
+  }
+
+  #sidebarMenu {
+    gap: 0.75rem;
+  }
+
+  #mainNavbar {
+    padding: 1.25rem 1.5rem;
+  }
+
+  #mainNavbar::after {
+    left: 1.5rem;
+    right: 1.5rem;
+  }
+
+  #mainContent {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 640px) {
+  #sidebarMenu {
+    padding: 1rem;
+  }
+
+  .tab-btn-main {
+    margin-bottom: 0;
+  }
+
+  #pageEyebrow {
+    letter-spacing: 0.24em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card:hover,
+  .tab-btn-main.active,
+  .table-compact tr:hover {
+    transform: none;
+  }
+}

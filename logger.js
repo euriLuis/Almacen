@@ -66,10 +66,10 @@ function response(method, url, statusCode, duration = null) {
  * Log an error with context
  */
 function error(context, message, details = null) {
-    const fullMsg = message;
+    let fullMsg = message;
     if (details) {
         fullMsg += details instanceof Error ?
-            ` | Stack: ${details.stack}` :
+            ` | Error: ${details.message} | Stack: ${details.stack}` :
             ` | Details: ${JSON.stringify(details)}`;
     }
     console.error(`❌ [${context}] ${fullMsg}`);
@@ -89,9 +89,11 @@ function action(context, description, data = null) {
  * Log a warning
  */
 function warn(context, message, details = null) {
-    const fullMsg = message;
+    let fullMsg = message;
     if (details) {
-        fullMsg += ` | Details: ${JSON.stringify(details)}`;
+        fullMsg += details instanceof Error ?
+            ` | Error: ${details.message} | Stack: ${details.stack}` :
+            ` | Details: ${JSON.stringify(details)}`;
     }
     console.warn(`⚠️ [${context}] ${fullMsg}`);
     writeLog('WARN', context, fullMsg);

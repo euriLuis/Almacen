@@ -83,6 +83,11 @@ module.exports = async function initDb() {
         );
     `);
 
+    db.run('CREATE INDEX IF NOT EXISTS idx_categories_warehouse_id ON categories(warehouse_id);');
+    db.run('CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);');
+    db.run('CREATE INDEX IF NOT EXISTS idx_movements_warehouse_date ON movements(warehouse_id, date);');
+    db.run('CREATE INDEX IF NOT EXISTS idx_movements_product_id ON movements(product_id);');
+
     // Migrate existing movements to add warehouse_id if column doesn't exist
     try {
         db.run(`ALTER TABLE movements ADD COLUMN warehouse_id INTEGER`);
